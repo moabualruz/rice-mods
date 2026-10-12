@@ -19,7 +19,7 @@
         "source": "github",
         "repo": "moabualruz/rice-multi-models"
       },
-      "description": "Codex (ChatGPT subscription), OpenAI-style, Anthropic-style and Bedrock endpoints (Ollama, LM Studio, vLLM, llama.cpp, OpenRouter, OpenCode Go), and Antigravity or Grok as workers: session and subagent models in Claude Code, no proxy"
+      "description": "Codex (ChatGPT subscription), OpenCode Zen and Go, and any Chat Completions, Responses, Anthropic, Gemini or Bedrock endpoint (Ollama, LM Studio, vLLM, llama.cpp, OpenRouter), plus Antigravity or Grok as workers: session and subagent models in Claude Code, no proxy"
     }
   ]
 }
