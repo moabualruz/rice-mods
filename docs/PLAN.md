@@ -57,5 +57,8 @@ moabualruz/rice-multi-models); this repository is the marketplace listing them.
 - [x] Live: Codex main with tools, Claude main with Codex subagent, agent file on Codex, Codex main with Claude subagent, compaction
 - [x] Tests: 6 mod (claude plugin test), 6 helper (bun test, captured streams); helper type-checks
 - [x] One repository per mod plus this marketplace (GitHub, public); `/model` rows for the visible Codex models
-- [ ] Session helper (private socket, token) as the default: one WebSocket per conversation (owner: yes, default)
-- [ ] Providers (owner: all): named custom endpoints in OpenAI or Anthropic style (Ollama, llama.cpp, vLLM, LM Studio, clouds), OpenRouter, OpenCode Go/Zen, Antigravity and Grok workers, Cursor
+- [x] Session helper (private socket, token) as the default: one WebSocket per conversation; one-shot fallback
+- [x] Declared providers (claude-styx format): OpenAI-style, Anthropic-style, Bedrock; live: LM Studio, OpenRouter; OpenCode Go reaches the service (needs an active Go subscription)
+- [x] Workers: Antigravity (live) and Grok (parser-tested; needs grok login)
+- [x] /model picker rows for every routed model (/rice-models picker write)
+- [ ] Cursor worker: needs the Cursor CLI or SDK and a Cursor login (owner)

@@ -15,7 +15,7 @@ picks up new versions.
 | Mod | Repository | What it does |
 | --- | --- | --- |
 | `rice-session-accounts` | [moabualruz/rice-session-accounts](https://github.com/moabualruz/rice-session-accounts) | Several Anthropic accounts (claude.ai login or token, Console API key, gateway, Bedrock, Vertex, Foundry); `/rice-account <name>` switches only the current session and what it starts. |
-| `rice-multi-models` | [moabualruz/rice-multi-models](https://github.com/moabualruz/rice-multi-models) | Non-Anthropic models as ordinary session and subagent models with Claude Code's own tools: Codex through a ChatGPT subscription today, more providers on the way. No proxy. |
+| `rice-multi-models` | [moabualruz/rice-multi-models](https://github.com/moabualruz/rice-multi-models) | Non-Anthropic models as ordinary session and subagent models: Codex through a ChatGPT subscription; any OpenAI-style, Anthropic-style or Bedrock endpoint (Ollama, LM Studio, vLLM, llama.cpp, OpenRouter, OpenCode Go, clouds); Antigravity and Grok as workers. No proxy. |
 
 Each mod lives in its own repository with its own README, tests and third-party
 notices. `docs/PLAN.md` records the design, what was verified and what is next.
