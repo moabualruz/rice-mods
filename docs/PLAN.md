@@ -59,6 +59,7 @@ moabualruz/rice-multi-models); this repository is the marketplace listing them.
 - [x] One repository per mod plus this marketplace (GitHub, public); `/model` rows for the visible Codex models
 - [x] Session helper (private socket, token) as the default: one WebSocket per conversation; one-shot fallback
 - [x] Declared providers (claude-styx format): OpenAI-style, Anthropic-style, Bedrock; live: LM Studio, OpenRouter; OpenCode Go reaches the service (needs an active Go subscription)
+- [x] OpenCode Zen and Go (rice-multi-models 0.5.0, 2026-10-12): per-model kinds, Responses and Gemini codecs, /rice-models opencode; live: Responses kind on LM Studio and OpenRouter, Anthropic kind under a /v1 base on LM Studio; all four protocols reach OpenCode authenticated (Zen 402 no credit, Go 403 no subscription); Gemini replies unit-tested only (owner: Zen credit or a Go subscription to finish)
 - [x] Workers: Antigravity (live) and Grok (parser-tested; needs grok login)
 - [x] /model picker rows for every routed model (/rice-models picker write)
 - [ ] Cursor worker: needs the Cursor CLI or SDK and a Cursor login (owner)
