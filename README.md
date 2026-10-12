@@ -19,3 +19,7 @@ picks up new versions.
 
 Each mod lives in its own repository with its own README, tests and third-party
 notices. `docs/PLAN.md` records the design, what was verified and what is next.
+
+## License
+
+MIT, see `LICENSE`. Each mod carries its own license and third-party notices.
