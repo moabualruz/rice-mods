@@ -1,0 +1,17 @@
+{
+  "name": "rice-mods",
+  "description": "Rice mods for Claude Code: per-session Anthropic accounts and non-Anthropic models inside Claude Code's own loop",
+  "owner": { "name": "moabualruz" },
+  "plugins": [
+    {
+      "name": "rice-session-accounts",
+      "source": { "source": "github", "repo": "moabualruz/rice-session-accounts" },
+      "description": "Saved Anthropic accounts (claude.ai, API key, gateway, Bedrock, Vertex, Foundry); /rice-account switches only this session"
+    },
+    {
+      "name": "rice-multi-models",
+      "source": { "source": "github", "repo": "moabualruz/rice-multi-models" },
+      "description": "Codex (ChatGPT subscription) models as session and subagent models, streamed over WebSocket, no proxy"
+    }
+  ]
+}
