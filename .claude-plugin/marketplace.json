@@ -11,7 +11,7 @@
         "source": "github",
         "repo": "moabualruz/rice-session-accounts"
       },
-      "description": "Saved Anthropic accounts (claude.ai, API key, gateway, Bedrock, Vertex, Foundry); /rice-account switches only this session"
+      "description": "Choose an Anthropic OAuth account by email and tier for this session, with resumable setup and the machine configuration preserved"
     },
     {
       "name": "rice-multi-models",
