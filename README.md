@@ -3,21 +3,22 @@
 A marketplace for two Claude Code mods. Choose the one that matches what you
 want to change, or install both.
 
-**Current status:** published Accounts **0.3.0** and MultiModels **0.8.0** do not
-meet the full requirement inside ordinary, unmodified `claude`. Their complete
-native behavior depended on a startup preload integration that is no longer an
-accepted installation mechanism. The previous launcher-based installation path
-is withdrawn. There is currently no recommended command that restores full
-coverage through the exposed plugin API. Do not recreate the historical launchers.
+Use the ordinary, unmodified `claude` command. These mods introduce no launcher,
+replacement executable, inference proxy or gateway.
+
+**Release progress:** [Accounts **0.4.0** is published](https://github.com/moabualruz/rice-session-accounts/releases/tag/rice-session-accounts--v0.4.0),
+with ordinary-Claude acceptance, independent review and all five required Linux
+and native Windows checks passed. MultiModels **0.8.0** remains published
+while its public-hook replacement is being completed.
 
 | Mod | Available through ordinary Claude | Current limitation |
 | --- | --- | --- |
-| [Rice Accounts](https://github.com/moabualruz/rice-session-accounts#readme) | Account setup, email/tier picker, saved-account checks and credential storage | The current guard refuses named account switches without the rejected native bridge. Complete per-session identity and usage switching remain unresolved. |
-| [Rice MultiModels](https://github.com/moabualruz/rice-multi-models#readme) | Provider setup, fresh discovery, approvals, search configuration and main/subagent turn routing through exposed hooks | Native compaction, internal inference, automatic evaluators and full native search do not have complete selected-provider coverage. |
+| [Rice Accounts](https://github.com/moabualruz/rice-session-accounts#readme) | 0.4.0: session OAuth switching, email/tier picker, selected usage/status, existing agents and child-process inheritance | Some internal native panels retain machine metadata; `/usage`, interactive `/status` and the plugin status entry report the selection. |
+| [Rice MultiModels](https://github.com/moabualruz/rice-multi-models#readme) | Provider setup, discovery, approvals and main/child routing. Source candidate adds public compaction, session naming, web tools, classifiers and configured evaluators. | Full auxiliary coverage remains open, including ambiguous concurrent callers and complete loaded evaluator-source coverage. |
 
 The complete plugin-only behavior remains the requirement; these available
 parts are not a replacement acceptance scope. See the
-[plugin API findings](https://github.com/moabualruz/rice-multi-models/blob/main/docs/research/plugin-only-activation-20261016.md).
+[implementation status](https://github.com/moabualruz/rice-multi-models/blob/main/docs/specs/direct-native-inference.md).
 
 Rice Accounts manages Anthropic OAuth sign-ins and setup tokens. API keys,
 provider endpoints, cloud providers and other model subscriptions belong in
@@ -26,6 +27,8 @@ Rice MultiModels. Provider requests use direct calls, without an inference proxy
 ## Before installing
 
 Use macOS, Linux (including WSL), or native Windows, with Node.js 22 or newer.
+Accounts 0.4.0's complete current proof uses Claude Code 2.1.301. Keep Claude
+updated with its normal updater.
 Run installation commands in the environment where ordinary Claude Code runs;
 use a WSL terminal for WSL. You do not need to build either plugin or install
 its development dependencies. Keep your normal Claude executable and updater.
@@ -41,8 +44,7 @@ claude plugin install rice-multi-models --marketplace moabualruz/rice-mods
 
 Each command adds the marketplace if needed and installs that plugin. Restart
 ordinary Claude Code after installation. `claude plugin list` shows installed
-plugins. Installing these published versions does not resolve the native
-coverage limitations above.
+plugins. Check the installed version before using a newly published feature.
 
 Alternatively, add the marketplace once and install by its short name:
 
@@ -62,7 +64,10 @@ In ordinary Claude Code, save an extra Anthropic account:
 
 The command saves the account name and prints **one terminal setup command**.
 Copy that generated command into a terminal on the same machine and complete
-Claude's browser or terminal sign-in. The helper checks whether the account is
+Claude's browser or terminal sign-in. If a different browser holds the account
+you want, append `--manual --email you@example.com` to that command. Open its URL
+in that browser, authorize, and paste the returned code into the terminal. The
+helper verifies the account email. It checks whether the account is
 already ready and resumes unfinished setup. Use `/rice-account setup personal-live`
 to show the command again.
 
@@ -74,15 +79,25 @@ identity:
 /rice-account
 ```
 
-The picker displays saved names, emails and tiers. Escape closes it. Selecting a
-named account currently returns a native-bridge refusal in ordinary Claude;
-setup, a successful check and a picker entry do not mean the session switched.
-There is no current compliant activation command for that missing behavior.
+The picker displays saved names, emails and tiers. In Accounts 0.4.0, select a
+row or enter `/rice-account personal-live` to switch this session from its next
+request. `/usage` shows that account's usage; interactive `/status` shows its
+email and tier. Escape closes the picker. If an older installation refuses named
+switches, update it to 0.4.0:
+
+```bash
+claude plugin update rice-session-accounts@rice-mods
+```
+
+Start a new ordinary Claude session after updating. Each new independent session
+uses the normal machine login until you select an account in that session.
 
 | Command | Result |
 | --- | --- |
 | `/rice-account check personal-live` | Check that saved account's credential. |
 | `/rice-account list` | Show saved names and cached email/tier metadata as text. |
+| `/rice-account personal-live` | Use that saved OAuth account for this session's next request and its descendants. |
+| `/usage` | After selection, show the selected account's current usage. |
 | `/rice-account login` | Restore this process's starting credential environment, including recovery in an existing session. |
 | `/rice-account add work-live` | Save another extra account and show its setup command. |
 
@@ -90,7 +105,7 @@ Each extra login has its own credential directory. Setup preserves the machine's
 normal settings, models, skills, plugins, MCP configuration, permissions and login.
 Independent ordinary Claude sessions keep that machine login. See the
 [Rice Accounts guide](https://github.com/moabualruz/rice-session-accounts#readme)
-for setup tokens, storage details and current switching limitations.
+for setup tokens, storage details and native-panel reporting limits.
 
 ## Use Rice MultiModels
 
