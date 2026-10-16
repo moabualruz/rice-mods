@@ -18,12 +18,17 @@ Use macOS or Linux, including WSL, with Node.js 22 or newer. Run installation
 commands in the environment where Claude Code runs; use a WSL terminal for WSL.
 You do not need to build either plugin or install its development dependencies.
 
-**Rice MultiModels 0.7.0's full native adapter supports the official Claude Code
+**Rice MultiModels 0.7.1's full native adapter supports the official Claude Code
 2.1.299 executable. Claude Code 2.1.300 is not qualified for that adapter.** Its
 `rice-claude` launcher checks the host version. Check the
 [MultiModels requirements](https://github.com/moabualruz/rice-multi-models#requirements-and-platform-scope)
 before setting up provider inference. Rice Accounts has its own compatibility
 requirements in its [README](https://github.com/moabualruz/rice-session-accounts#readme).
+
+Your machine's normal Claude version can stay in place. MultiModels can save a
+separate, verified 2.1.299 executable for `rice-claude`; see its
+[installation guide](https://github.com/moabualruz/rice-multi-models#install-and-start)
+for the private runtime prerequisite and setup command.
 
 ## Install
 
@@ -106,6 +111,16 @@ Install the native launcher from that Claude session:
 ```text
 /rice-models setup native
 ```
+
+If your normal `claude` is a different version, give setup the full path to your
+separate official 2.1.299 executable:
+
+```text
+/rice-models setup native /absolute/path/to/qualified/claude
+```
+
+Setup verifies and remembers that executable. Later `rice-claude` launches use it
+without an environment override or a change to your normal `claude` command.
 
 Then start a new session from your terminal:
 
