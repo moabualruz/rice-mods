@@ -10,7 +10,7 @@ inference proxy or gateway.
 | Mod | What it does |
 | --- | --- |
 | [Rice Accounts](https://github.com/moabualruz/rice-session-accounts#readme) 0.4.1 | Switch this session between saved Anthropic OAuth accounts, picked by email and tier; `/usage` and `/status` report the selection; agents and child processes inherit it. |
-| [Rice MultiModels](https://github.com/moabualruz/rice-multi-models#readme) 0.9.0 | Codex (ChatGPT subscription), OpenCode, any Chat Completions, Responses, Anthropic, Gemini or Bedrock endpoint, and local servers as session and subagent models. Each conversation stays on its own provider for subagents, skills, compaction, titles, permission judgments, web search and fetch. |
+| [Rice MultiModels](https://github.com/moabualruz/rice-multi-models#readme) 0.9.1 | Codex (ChatGPT subscription), OpenCode, any Chat Completions, Responses, Anthropic, Gemini or Bedrock endpoint, and local servers as session and subagent models. Each conversation stays on its own provider for subagents, skills, compaction, titles, permission judgments, web search and fetch. |
 
 Rice Accounts manages Anthropic OAuth sign-ins and setup tokens. API keys,
 provider endpoints, cloud providers and other model subscriptions belong in
