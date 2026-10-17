@@ -3,32 +3,24 @@
 A marketplace for two Claude Code mods. Choose the one that matches what you
 want to change, or install both.
 
-Use the ordinary, unmodified `claude` command. These mods introduce no launcher,
-replacement executable, inference proxy or gateway.
+Use the ordinary, unmodified `claude` command. These mods work through Claude
+Code's plugin hooks only: no launcher, replacement executable, MCP server,
+inference proxy or gateway.
 
-**Release progress:** [Accounts **0.4.0** is published](https://github.com/moabualruz/rice-session-accounts/releases/tag/rice-session-accounts--v0.4.0),
-with ordinary-Claude acceptance, independent review and all five required Linux
-and native Windows checks passed. MultiModels **0.8.0** remains published
-while its public-hook replacement is being completed.
-
-| Mod | Available through ordinary Claude | Current limitation |
-| --- | --- | --- |
-| [Rice Accounts](https://github.com/moabualruz/rice-session-accounts#readme) | 0.4.0: session OAuth switching, email/tier picker, selected usage/status, existing agents and child-process inheritance | Some internal native panels retain machine metadata; `/usage`, interactive `/status` and the plugin status entry report the selection. |
-| [Rice MultiModels](https://github.com/moabualruz/rice-multi-models#readme) | Provider setup, discovery, approvals and main/child routing. Source candidate adds public compaction, session naming, web tools, classifiers and configured evaluators. | Full auxiliary coverage remains open, including ambiguous concurrent callers and complete loaded evaluator-source coverage. |
-
-The complete plugin-only behavior remains the requirement; these available
-parts are not a replacement acceptance scope. See the
-[implementation status](https://github.com/moabualruz/rice-multi-models/blob/main/docs/specs/direct-native-inference.md).
+| Mod | What it does |
+| --- | --- |
+| [Rice Accounts](https://github.com/moabualruz/rice-session-accounts#readme) 0.4.1 | Switch this session between saved Anthropic OAuth accounts, picked by email and tier; `/usage` and `/status` report the selection; agents and child processes inherit it. |
+| [Rice MultiModels](https://github.com/moabualruz/rice-multi-models#readme) 0.9.0 | Codex (ChatGPT subscription), OpenCode, any Chat Completions, Responses, Anthropic, Gemini or Bedrock endpoint, and local servers as session and subagent models. Each conversation stays on its own provider for subagents, skills, compaction, titles, permission judgments, web search and fetch. |
 
 Rice Accounts manages Anthropic OAuth sign-ins and setup tokens. API keys,
 provider endpoints, cloud providers and other model subscriptions belong in
-Rice MultiModels. Provider requests use direct calls, without an inference proxy.
+Rice MultiModels. Provider requests are direct calls.
 
 ## Before installing
 
 Use macOS, Linux (including WSL), or native Windows, with Node.js 22 or newer.
-Accounts 0.4.0's complete current proof uses Claude Code 2.1.301. Keep Claude
-updated with its normal updater.
+Both mods are checked with Claude Code 2.1.301 and 2.1.302. Keep Claude updated
+with its normal updater.
 Run installation commands in the environment where ordinary Claude Code runs;
 use a WSL terminal for WSL. You do not need to build either plugin or install
 its development dependencies. Keep your normal Claude executable and updater.
@@ -79,11 +71,11 @@ identity:
 /rice-account
 ```
 
-The picker displays saved names, emails and tiers. In Accounts 0.4.0, select a
+The picker displays saved names, emails and tiers. In Accounts 0.4.1, select a
 row or enter `/rice-account personal-live` to switch this session from its next
 request. `/usage` shows that account's usage; interactive `/status` shows its
 email and tier. Escape closes the picker. If an older installation refuses named
-switches, update it to 0.4.0:
+switches, update it to 0.4.1:
 
 ```bash
 claude plugin update rice-session-accounts@rice-mods
@@ -120,7 +112,7 @@ Existing provider logins are reused. For Codex with a ChatGPT subscription, run
 `codex login` in a terminal if needed. If Codex is missing,
 `/rice-models setup codex` installs its scoped CLI and prints the exact login
 command. API endpoints, local models, OpenCode and other providers have their
-own [setup instructions](https://github.com/moabualruz/rice-multi-models#provider-specific-setup).
+own [setup instructions](https://github.com/moabualruz/rice-multi-models#provider-setup).
 
 For a declared provider, run `/rice-models providers`, then approve its actual
 name with `/rice-models approve <provider>`. Refresh and list the catalogue:
@@ -130,39 +122,27 @@ name with `/rice-models approve <provider>`. Refresh and list the catalogue:
 /rice-models models
 ```
 
-Select an actual returned model ID with `/model <model-id>`. Use
-`/rice-models doctor` and `/rice-models status` to inspect current state. An
-inactive native adapter is expected in ordinary Claude under the current
-limitation. A successful main or subagent turn confirms that routed path only;
-it does not establish native compaction, evaluator, internal-tool or full search
-coverage. Ignore historical activation instructions in published command output.
+Select a model with `/model <model-id>` using an id from `/rice-models models`.
+Subagents, skills and other work in that session stay on the same provider unless
+you choose another one with an agent type such as `rice-multi-models:claude`.
+`/rice-models doctor` and `/rice-models status` show the current state.
 
-Continue using ordinary `claude` for later sessions. There is no replacement
-startup command or account-selection startup flag to use. See the
-[Rice MultiModels guide](https://github.com/moabualruz/rice-multi-models#readme)
-for provider configuration and the explicit capability table.
+See the [Rice MultiModels guide](https://github.com/moabualruz/rice-multi-models#readme)
+for families and tiers, provider configuration and known limits.
 
 ### Configure web search
-
-Search endpoint configuration remains available:
 
 ```text
 /rice-models search setup
 /rice-models search
 ```
 
-The dialog supports SearXNG, Brave and Tavily. Give a self-hosted or free service
-a lower priority number than cloud fallbacks. Supply endpoint URLs and credential
-references, with key values kept in the environment or a credential helper.
-Saved edits apply on the next retrieval through the configured helper.
-
-The full native search chain in published 0.8.0 tried the selected provider,
-then saved services, then native Claude search. Its Anthropic fallback was
-specific to dedicated WebSearch, not ordinary inference or compaction. That
-complete integration depended on the rejected adapter. A working saved service
-does not prove that native WebSearch in ordinary Claude will use it or bypass a
-Claude quota refusal. The [MultiModels search guide](https://github.com/moabualruz/rice-multi-models#web-search)
-retains the configuration commands and provider-specific reference material.
+WebSearch in a routed session tries the selected provider's own search first,
+then your saved services by priority (SearXNG, Brave, Tavily), then Claude's
+native search with the session's account. Give a self-hosted or free service a
+lower priority number than cloud services. Keep keys in the environment or a
+credential helper; never paste them into the session. See the
+[search guide](https://github.com/moabualruz/rice-multi-models#web-search).
 
 ## Update and recover
 
@@ -174,21 +154,17 @@ claude plugin update rice-session-accounts@rice-mods
 claude plugin update rice-multi-models@rice-mods
 ```
 
-Restart ordinary Claude to load updated function hooks. `/reload-plugins` can
-reload function hooks in a running session; it cannot add the missing native
-integration. Published release archives remain historical. This documentation
-correction is not a new runtime release or a claim that the full requirement is
-fixed. Never open the same session UUID concurrently in two processes.
+Restart ordinary Claude, or run `/reload-plugins` in a running session, to load
+the updated hooks. Never open the same session UUID concurrently in two processes.
 
 - **An account is saved but setup is unfinished:** run `/rice-account setup <name>`
   and rerun its generated terminal command. Keep the existing account entry.
 - **An older WSL install tries `/usr/bin/security`:** update Rice Accounts,
   restart ordinary Claude and resume the saved account's setup command.
-- **A named account switch is refused:** the required bridge is unavailable in
-  ordinary Claude. Do not follow the historical launcher setup suggestion.
+- **A named account switch is refused:** update Rice Accounts to 0.4.0 or newer
+  and start a new session.
 - **Provider models are missing or unavailable:** run `/rice-models doctor`,
   then `/rice-models setup` and follow Node, login or provider-approval guidance.
-  Historical native-adapter setup output is not a recommended recovery path.
 
 Each mod has its own repository, README, tests and third-party notices.
 
