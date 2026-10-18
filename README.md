@@ -9,7 +9,7 @@ inference proxy or gateway.
 
 | Mod | What it does |
 | --- | --- |
-| [Rice Accounts](https://github.com/moabualruz/rice-session-accounts#readme) 0.5.0 | Switch this session between saved Anthropic OAuth accounts, picked by email and tier; `/usage` and `/status` report the selection; agents and child processes inherit it, and commands run exactly as typed. |
+| [Rice Accounts](https://github.com/moabualruz/rice-session-accounts#readme) 0.6.0 | Switch this session between saved Anthropic OAuth accounts, picked by email and tier; `/usage` and `/status` report the selection; agents and child processes inherit it, and commands run exactly as typed. |
 | [Rice MultiModels](https://github.com/moabualruz/rice-multi-models#readme) 0.9.2 | Codex (ChatGPT subscription), OpenCode, any Chat Completions, Responses, Anthropic, Gemini or Bedrock endpoint, and local servers as session and subagent models. Each conversation stays on its own provider for subagents, skills, compaction, titles, permission judgments, web search and fetch. |
 
 Rice Accounts manages Anthropic OAuth sign-ins and setup tokens. API keys,
@@ -71,11 +71,11 @@ identity:
 /rice-account
 ```
 
-The picker displays saved names, emails and tiers. In Accounts 0.5.0, select a
+The picker displays saved names, emails and tiers. In Accounts 0.6.0, select a
 row or enter `/rice-account personal-live` to switch this session from its next
 request. `/usage` shows that account's usage; interactive `/status` shows its
 email and tier. Escape closes the picker. If an older installation refuses named
-switches, update it to 0.5.0:
+switches, update it to 0.6.0:
 
 ```bash
 claude plugin update rice-session-accounts@rice-mods
