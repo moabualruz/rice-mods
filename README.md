@@ -123,8 +123,9 @@ name with `/rice-models approve <provider>`. Refresh and list the catalogue:
 ```
 
 Select a model with `/model <model-id>` using an id from `/rice-models models`.
-Subagents, skills and other work in that session stay on the same provider unless
-you choose another one with an agent type such as `rice-multi-models:claude`.
+Built-in agents use the session's provider. Set `model: provider/model` in a
+custom agent's frontmatter to route it to an exact model. Agent definitions stay
+native to Claude Code; `/model` selects the main session's model.
 `/rice-models doctor` and `/rice-models status` show the current state.
 
 See the [Rice MultiModels guide](https://github.com/moabualruz/rice-multi-models#readme)
