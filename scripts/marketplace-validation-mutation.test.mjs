@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const repository = "moabualruz/rice-example";
+const commit = "a".repeat(40);
 const tag = "rice-example--v1.2.3";
 const manifestCheck = "if (manifest.name !== plugin.name || manifest.version !== version) {";
 
@@ -18,7 +19,7 @@ test("the manifest mismatch assertion detects a weakened name/version check", as
     () =>
       weakenedModule.validateMarketplace({
         marketplace: {
-          plugins: [{ name: "rice-example", source: { source: "github", repo: repository } }],
+          plugins: [{ name: "rice-example", source: { source: "github", repo: repository, sha: commit } }],
         },
         readme: `| [Rice Example](https://github.com/${repository}#readme) 1.2.3 | Example plugin |`,
         getRelease: async () => ({
@@ -28,6 +29,7 @@ test("the manifest mismatch assertion detects a weakened name/version check", as
           published_at: "2026-01-01T00:00:00Z",
         }),
         getManifest: async () => ({ name: "different-plugin", version: "9.9.9" }),
+        getCommit: async () => commit,
       }),
     /does not match its release manifest/,
   );

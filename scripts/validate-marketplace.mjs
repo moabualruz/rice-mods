@@ -19,8 +19,10 @@ const validated = await validateMarketplace({
     fetchJson(`https://api.github.com/repos/${repository}/releases/tags/${tag}`),
   getManifest: (repository, tag) =>
     fetchJson(`https://raw.githubusercontent.com/${repository}/${tag}/.claude-plugin/plugin.json`),
+  getCommit: async (repository, tag) =>
+    (await fetchJson(`https://api.github.com/repos/${repository}/commits/${tag}`)).sha,
 });
 
 for (const plugin of validated) {
-  console.log(`Validated ${plugin.name} ${plugin.version} against published release ${plugin.tag}`);
+  console.log(`Validated ${plugin.name} ${plugin.version} at ${plugin.commit} against published release ${plugin.tag}`);
 }

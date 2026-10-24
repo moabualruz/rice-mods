@@ -2,7 +2,7 @@ function fail(message) {
   throw new Error(message);
 }
 
-export async function validateMarketplace({ marketplace, readme, getRelease, getManifest }) {
+export async function validateMarketplace({ marketplace, readme, getRelease, getManifest, getCommit }) {
   const readmeVersions = new Map();
   const versionRows = readme.matchAll(
     /^\|\s*\[[^\]]+\]\(https:\/\/github\.com\/([^)#]+)(?:#readme)?\)\s+(\d+\.\d+\.\d+)\s+\|/gm,
@@ -21,11 +21,15 @@ export async function validateMarketplace({ marketplace, readme, getRelease, get
   const validated = [];
   for (const plugin of marketplace.plugins) {
     const repository = plugin.source?.repo;
+    const commit = plugin.source?.sha;
     if (plugin.source?.source !== "github" || typeof repository !== "string") {
       fail(`Marketplace plugin ${plugin.name ?? "(unnamed)"} must use a GitHub repository source`);
     }
     if (!/^[\w.-]+\/[\w.-]+$/.test(repository)) {
       fail(`Marketplace plugin ${plugin.name} has an invalid GitHub repository source`);
+    }
+    if (!/^[0-9a-f]{40}$/.test(commit || "")) {
+      fail(`Marketplace plugin ${plugin.name} must set source.sha to an exact commit SHA`);
     }
     if (seenRepositories.has(repository)) fail(`Marketplace lists ${repository} more than once`);
     seenRepositories.add(repository);
@@ -47,7 +51,11 @@ export async function validateMarketplace({ marketplace, readme, getRelease, get
           `(${manifest.name ?? "unnamed"} ${manifest.version ?? "unversioned"})`,
       );
     }
-    validated.push({ name: plugin.name, version, tag });
+    const releaseCommit = await getCommit(repository, tag);
+    if (releaseCommit !== commit) {
+      fail(`${repository} marketplace commit pin does not match ${tag} (${releaseCommit ?? "unresolved"})`);
+    }
+    validated.push({ name: plugin.name, version, tag, commit });
   }
 
   for (const repository of readmeVersions.keys()) {

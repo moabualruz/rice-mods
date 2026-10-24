@@ -3,12 +3,13 @@ import test from "node:test";
 import { validateMarketplace } from "./marketplace-validation.mjs";
 
 const repository = "moabualruz/rice-example";
+const commit = "a".repeat(40);
 const tag = "rice-example--v1.2.3";
 const marketplace = {
   plugins: [
     {
       name: "rice-example",
-      source: { source: "github", repo: repository },
+      source: { source: "github", repo: repository, sha: commit },
     },
   ],
 };
@@ -22,11 +23,12 @@ function input(overrides = {}) {
     readme,
     getRelease: async () => release,
     getManifest: async () => manifest,
+    getCommit: async () => commit,
     ...overrides,
   };
 }
 
-test("accepts a published stable release matching the marketplace and README", async () => {
+test("accepts a published stable release pinned to its exact commit", async () => {
   const refs = [];
   const result = await validateMarketplace(
     input({
@@ -38,10 +40,14 @@ test("accepts a published stable release matching the marketplace and README", a
         refs.push([repo, ref]);
         return manifest;
       },
+      getCommit: async (repo, ref) => {
+        refs.push([repo, ref]);
+        return commit;
+      },
     }),
   );
-  assert.deepEqual(result, [{ name: "rice-example", version: "1.2.3", tag }]);
-  assert.deepEqual(refs, [[repository, tag], [repository, tag]]);
+  assert.deepEqual(result, [{ name: "rice-example", version: "1.2.3", tag, commit }]);
+  assert.deepEqual(refs, [[repository, tag], [repository, tag], [repository, tag]]);
 });
 
 test("rejects missing and duplicate README version rows", async () => {
@@ -64,6 +70,21 @@ test("rejects duplicate repositories and non-GitHub marketplace sources", async 
       ),
     /must use a GitHub repository source/,
   );
+});
+
+test("requires an exact source.sha commit pin", async () => {
+  for (const sha of [undefined, commit.slice(1), commit.toUpperCase()]) {
+    const source = { source: "github", repo: repository, ...(sha === undefined ? {} : { sha }) };
+    await assert.rejects(
+      () => validateMarketplace(input({ marketplace: { plugins: [{ name: "rice-example", source }] } })),
+      /must set source.sha to an exact commit SHA/,
+    );
+  }
+});
+
+test("rejects a commit pin that differs from the published release", async () => {
+  await assert.rejects(() => validateMarketplace(input({ getCommit: async () => "b".repeat(40) })),
+    /marketplace commit pin does not match/);
 });
 
 test("rejects unpublished, draft, prerelease, and mismatched release tags", async () => {
