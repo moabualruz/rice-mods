@@ -10,11 +10,15 @@ inference proxy or gateway.
 | Mod | What it does |
 | --- | --- |
 | [Rice Accounts](https://github.com/moabualruz/rice-session-accounts#readme) 0.6.0 | Switch this session between saved Anthropic OAuth accounts, picked by email and tier; `/usage` and `/status` report the selection; agents and child processes inherit it, and commands run exactly as typed. |
-| [Rice MultiModels](https://github.com/moabualruz/rice-multi-models#readme) 0.15.0 | Codex (ChatGPT subscription), OpenCode, any Chat Completions, Responses, Anthropic, Gemini or Bedrock endpoint, and local servers as session and subagent models. Each conversation stays on its own provider for subagents, skills, compaction, titles, permission judgments, web search and fetch. |
+| [Rice MultiModels](https://github.com/moabualruz/rice-multi-models#readme) 0.16.0 | Codex (ChatGPT subscription), OpenCode, configured API endpoints and local servers as session and subagent models. Fixes false stale-context refusals on successive compactions and avoids an unused persistent inference helper in native-only sessions. |
 
 Rice Accounts manages Anthropic OAuth sign-ins and setup tokens. API keys,
 provider endpoints, cloud providers and other model subscriptions belong in
-Rice MultiModels. Provider requests are direct calls.
+Rice MultiModels. Provider requests are direct calls. Claude Code retains native
+orchestration, goals, history, tools and permission ceilings. Routed compaction uses
+a public-hook adapter, not the full stock lifecycle. Hidden goal-evaluator inference
+can remain native, and web tools have an explicit final Claude fallback. See the
+[host boundaries](https://github.com/moabualruz/rice-multi-models/blob/main/docs/host-limits.md).
 
 ## Before installing
 
