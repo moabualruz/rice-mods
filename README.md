@@ -24,10 +24,25 @@ can remain native, and web tools have an explicit final Claude fallback. See the
 
 Use macOS, Linux (including WSL), or native Windows, with Node.js 22 or newer.
 Both mods are checked with Claude Code 2.1.301 and 2.1.302. Keep Claude updated
-with its normal updater.
+with its normal updater. The installed and published Claude Code versions were
+both 2.1.310 when this release lane was prepared; no newer version was available
+for an upgrade pass.
 Run installation commands in the environment where ordinary Claude Code runs;
 use a WSL terminal for WSL. You do not need to build either plugin or install
 its development dependencies. Keep your normal Claude executable and updater.
+
+### Claude Code upgrade check
+
+When a newer Claude Code version becomes available, install it with Claude Code's
+normal updater. For each mod, follow its release owner's complete seven-layer
+qualification checklist; if the checklist is missing or does not identify all
+seven layers, stop and ask the release owner to supply it. Do not treat
+`claude plugin validate --json` as the full qualification. Save the resulting
+capability baseline, compare it with the previous baseline, investigate every
+difference, and record the exact qualified versions and baseline in the release
+notes. Do not claim support for a version that was not tested. At preparation
+time, installed Claude Code and the published `@anthropic-ai/claude-code` package
+were both 2.1.310, so there was no newer version to qualify.
 
 ## Install
 
@@ -49,6 +64,19 @@ claude plugin marketplace add moabualruz/rice-mods
 claude plugin install rice-session-accounts@rice-mods
 claude plugin install rice-multi-models@rice-mods
 ```
+
+### Adding a private marketplace as a collaborator
+
+Use your own Git identity and credential helper. Configure the helper with its
+normal interactive sign-in flow before adding the marketplace. Then run
+`claude plugin marketplace add OWNER/REPOSITORY` without embedding a token in the
+URL or command. If Git prompts for authentication, complete the prompt through
+your credential helper; do not paste a token into shell history, a file, or a
+script. Confirm the marketplace appears with `claude plugin marketplace list`,
+then install a plugin by its marketplace-qualified name. Never ask another
+collaborator to share credentials. A public marketplace does not prove access to
+a private one, so validate with the actual private repository and collaborator
+identity before claiming this path is demonstrated.
 
 ## Use Rice Accounts
 
@@ -171,7 +199,9 @@ the updated hooks. Never open the same session UUID concurrently in two processe
 - **Provider models are missing or unavailable:** run `/rice-models doctor`,
   then `/rice-models setup` and follow Node, login or provider-approval guidance.
 
-Each mod has its own repository, README, tests and third-party notices.
+Each mod has its own repository, README, tests and third-party notices. See the
+[product mod release asset and limits contract](docs/mod-release-assets.md) for
+what each release must publish and document.
 
 ## License
 
