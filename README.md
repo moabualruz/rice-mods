@@ -10,7 +10,7 @@ inference proxy or gateway.
 | Mod | What it does |
 | --- | --- |
 | [Rice Accounts](https://github.com/moabualruz/rice-session-accounts#readme) 0.6.0 | Switch this session between saved Anthropic OAuth accounts, picked by email and tier; `/usage` and `/status` report the selection; agents and child processes inherit it, and commands run exactly as typed. |
-| [Rice MultiModels](https://github.com/moabualruz/rice-multi-models#readme) 0.16.0 | Codex (ChatGPT subscription), OpenCode, configured API endpoints and local servers as session and subagent models. Fixes false stale-context refusals on successive compactions and avoids an unused persistent inference helper in native-only sessions. |
+| [Rice MultiModels](https://github.com/moabualruz/rice-multi-models#readme) 0.17.4 | Codex (ChatGPT subscription), OpenCode, configured API endpoints and local servers as session and subagent models, mapped as native models: per-model context windows and efforts for Claude's own compaction, subagent rows labelled with their model, and every permission decision left to Claude. |
 
 The release-lane per-product limits requirements and source-derived product rows are documented in [docs/mod-release-assets.md](docs/mod-release-assets.md).
 
