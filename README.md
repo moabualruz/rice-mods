@@ -12,6 +12,8 @@ inference proxy or gateway.
 | [Rice Accounts](https://github.com/moabualruz/rice-session-accounts#readme) 0.6.0 | Switch this session between saved Anthropic OAuth accounts, picked by email and tier; `/usage` and `/status` report the selection; agents and child processes inherit it, and commands run exactly as typed. |
 | [Rice MultiModels](https://github.com/moabualruz/rice-multi-models#readme) 0.16.0 | Codex (ChatGPT subscription), OpenCode, configured API endpoints and local servers as session and subagent models. Fixes false stale-context refusals on successive compactions and avoids an unused persistent inference helper in native-only sessions. |
 
+The release-lane per-product limits requirements and source-derived product rows are documented in [docs/mod-release-assets.md](docs/mod-release-assets.md).
+
 Rice Accounts manages Anthropic OAuth sign-ins and setup tokens. API keys,
 provider endpoints, cloud providers and other model subscriptions belong in
 Rice MultiModels. Provider requests are direct calls. Claude Code retains native
@@ -23,10 +25,13 @@ can remain native, and web tools have an explicit final Claude fallback. See the
 ## Before installing
 
 Use macOS, Linux (including WSL), or native Windows, with Node.js 22 or newer.
-Both mods are checked with Claude Code 2.1.301 and 2.1.302. Keep Claude updated
-with its normal updater. The installed and published Claude Code versions were
-both 2.1.310 when this release lane was prepared; no newer version was available
-for an upgrade pass.
+For this marketplace's two mods, the shared supported Claude Code range is 2.1.301
+through 2.1.302, inclusive. Both have qualification evidence for those versions.
+Keep Claude updated with its normal updater. Executed on 2026-10-25: `claude --version` reported 2.1.310, and
+`nvm exec "$(nvm current)" npm view @anthropic-ai/claude-code version` reported
+2.1.310 (both exit 0). No newer version was available for an upgrade pass. The
+installed 2.1.310 version is outside the shared qualified range until both mods
+complete their version-specific qualification.
 Run installation commands in the environment where ordinary Claude Code runs;
 use a WSL terminal for WSL. You do not need to build either plugin or install
 its development dependencies. Keep your normal Claude executable and updater.
@@ -76,7 +81,9 @@ script. Confirm the marketplace appears with `claude plugin marketplace list`,
 then install a plugin by its marketplace-qualified name. Never ask another
 collaborator to share credentials. A public marketplace does not prove access to
 a private one, so validate with the actual private repository and collaborator
-identity before claiming this path is demonstrated.
+identity before claiming this path is demonstrated. The clean-directory marketplace
+check and its credential limitation are recorded in
+[docs/collaborator-install.md](docs/collaborator-install.md).
 
 ## Use Rice Accounts
 
