@@ -79,11 +79,10 @@ URL or command. If Git prompts for authentication, complete the prompt through
 your credential helper; do not paste a token into shell history, a file, or a
 script. Confirm the marketplace appears with `claude plugin marketplace list`,
 then install a plugin by its marketplace-qualified name. Never ask another
-collaborator to share credentials. A public marketplace does not prove access to
-a private one, so validate with the actual private repository and collaborator
-identity before claiming this path is demonstrated. The clean-directory marketplace
-check and its credential limitation are recorded in
-[docs/collaborator-install.md](docs/collaborator-install.md).
+collaborator to share credentials. A clean-directory test added and listed a
+private product marketplace using the owner's existing GitHub credential. This
+proves access for that identity, not a separate collaborator account. See the
+[recorded check](docs/collaborator-install.md).
 
 ## Use Rice Accounts
 
