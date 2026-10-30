@@ -19,7 +19,7 @@
       "source": {
         "source": "github",
         "repo": "moabualruz/rice-multi-models",
-        "sha": "830db9b5dabe8ce53cbc301d5c6a8dd01a66ab51"
+        "sha": "ecfd4ee5b083b1a3673843d154fff402e0c4d458"
       },
       "description": "Codex (ChatGPT subscription), OpenCode Zen and Go, and configured Chat Completions, Responses, Anthropic, Gemini or Bedrock endpoints and local servers as session and native subagent models in Claude Code, no proxy"
     }
