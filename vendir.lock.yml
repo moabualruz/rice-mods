@@ -1,0 +1,11 @@
+apiVersion: vendir.k14s.io/v1alpha1
+directories:
+- contents:
+  - git:
+      commitTitle: 'fix: restore legacy lifecycle errors'
+      sha: c485ae1e524e38242cb3d8a6cae0391f5ddf785a
+      tags:
+      - templates-v0.3.7
+    path: .
+  path: release-packages
+kind: LockConfig

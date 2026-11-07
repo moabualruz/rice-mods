@@ -1,0 +1,13 @@
+apiVersion: vendir.k14s.io/v1alpha1
+kind: Config
+minimumRequiredVersion: 0.40.0
+directories:
+  - path: release-packages
+    contents:
+      - path: .
+        git:
+          url: https://github.com/moabualruz/rice-release.git
+          ref: templates-v0.3.7
+        includePaths:
+          - templates/packages/**/*
+        newRootPath: templates/packages

@@ -1,0 +1,7 @@
+{
+  "name": "rice-probe-mod",
+  "version": "0.1.0",
+  "description": "Fixture Claude Code mod for the rice-release plugin package template; not a Rice product",
+  "author": { "name": "moabualruz" },
+  "license": "Apache-2.0"
+}
