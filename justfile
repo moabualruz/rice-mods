@@ -11,3 +11,8 @@ ci:
     claude plugin validate --strict .claude-plugin/marketplace.json
     node --test scripts/*.test.mjs
     node scripts/validate-marketplace.mjs
+
+# Local gate: live release check against the private release repos. Needs a developer token
+# that can read them (for example GITHUB_TOKEN="$(gh auth token)"); never skips.
+validate-live:
+    LIVE_RELEASE_CHECK=required node scripts/validate-marketplace.mjs

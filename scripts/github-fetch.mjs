@@ -23,7 +23,7 @@ export function createGithubJsonFetcher({ token, fetchImpl = fetch } = {}) {
         const hint = !token && (response.status === 401 || response.status === 403 || response.status === 404)
           ? "; no GITHUB_TOKEN was provided, so private repositories are refused"
           : "";
-        throw new Error(`GitHub returned HTTP ${response.status} for ${url}${hint}`);
+        throw Object.assign(new Error(`GitHub returned HTTP ${response.status} for ${url}${hint}`), { status: response.status });
       }
       return response.json();
     }

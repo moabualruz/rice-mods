@@ -2,7 +2,17 @@ function fail(message) {
   throw new Error(message);
 }
 
-export async function validateMarketplace({ marketplace, readme, getRelease, getManifest, getCommit }) {
+const SKIPPABLE_STATUSES = new Set([401, 403, 404]);
+
+export async function validateMarketplace({
+  marketplace,
+  readme,
+  getRelease,
+  getManifest,
+  getCommit,
+  skippableRepositories = new Set(),
+  onSkip,
+}) {
   const readmeVersions = new Map();
   const versionRows = readme.matchAll(
     /^\|\s*\[[^\]]+\]\(https:\/\/github\.com\/([^)#]+)(?:#readme)?\)\s+(\d+\.\d+\.\d+)\s+\|/gm,
@@ -39,7 +49,15 @@ export async function validateMarketplace({ marketplace, readme, getRelease, get
 
     const repositoryName = repository.split("/").at(-1);
     const tag = `${repositoryName}--v${version}`;
-    const release = await getRelease(repository, tag);
+    let release;
+    try {
+      release = await getRelease(repository, tag);
+    } catch (error) {
+      if (!SKIPPABLE_STATUSES.has(error?.status) || !skippableRepositories.has(repository)) throw error;
+      onSkip?.({ repository, tag, status: error.status });
+      validated.push({ name: plugin.name, version, tag, commit, skipped: true });
+      continue;
+    }
     if (release.tag_name !== tag || release.draft || release.prerelease || !release.published_at) {
       fail(`${repository} ${tag} is not a published stable release`);
     }

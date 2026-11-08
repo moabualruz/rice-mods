@@ -5,10 +5,17 @@ import { validateMarketplace } from "./marketplace-validation.mjs";
 const marketplace = JSON.parse(await readFile(".claude-plugin/marketplace.json", "utf8"));
 const readme = await readFile("README.md", "utf8");
 const fetchJson = createGithubJsonFetcher({ token: process.env.GITHUB_TOKEN });
+const privateRepositories = JSON.parse(await readFile(new URL("./private-repositories.json", import.meta.url), "utf8"));
+const hostedSkipAllowed = process.env.GITHUB_ACTIONS === "true" && process.env.LIVE_RELEASE_CHECK !== "required";
 
 const validated = await validateMarketplace({
   marketplace,
   readme,
+  skippableRepositories: hostedSkipAllowed ? new Set(privateRepositories) : new Set(),
+  onSkip: ({ repository, tag, status }) =>
+    console.log(
+      `live release check skipped in hosted CI: private repos not readable by GITHUB_TOKEN (${repository} ${tag}, HTTP ${status})`,
+    ),
   getRelease: (repository, tag) =>
     fetchJson(`https://api.github.com/repos/${repository}/releases/tags/${tag}`),
   getManifest: async (repository, tag) => {
@@ -22,5 +29,5 @@ const validated = await validateMarketplace({
 });
 
 for (const plugin of validated) {
-  console.log(`Validated ${plugin.name} ${plugin.version} at ${plugin.commit} against published release ${plugin.tag}`);
+  if (!plugin.skipped) console.log(`Validated ${plugin.name} ${plugin.version} at ${plugin.commit} against published release ${plugin.tag}`);
 }
