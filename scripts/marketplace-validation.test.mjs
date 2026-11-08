@@ -118,3 +118,52 @@ test("rejects README rows not backed by a marketplace source", async () => {
     /not present in marketplace.json/,
   );
 });
+
+function httpError(status) {
+  return Object.assign(new Error(`GitHub returned HTTP ${status}`), { status });
+}
+
+test("skips an unreadable repository only when listed as skippable, and reports it", async () => {
+  const skips = [];
+  for (const status of [401, 403, 404]) {
+    const result = await validateMarketplace(
+      input({
+        getRelease: async () => {
+          throw httpError(status);
+        },
+        skippableRepositories: new Set([repository]),
+        onSkip: (skip) => skips.push(skip),
+      }),
+    );
+    assert.deepEqual(result, [{ name: "rice-example", version: "1.2.3", tag, commit, skipped: true }]);
+  }
+  assert.deepEqual(skips.map((skip) => skip.status), [401, 403, 404]);
+});
+
+test("a 404 on a repository not listed as skippable still fails", async () => {
+  const getRelease = async () => {
+    throw httpError(404);
+  };
+  await assert.rejects(() => validateMarketplace(input({ getRelease })), /HTTP 404/);
+  await assert.rejects(
+    () => validateMarketplace(input({ getRelease, skippableRepositories: new Set(["moabualruz/other"]) })),
+    /HTTP 404/,
+  );
+});
+
+test("non-auth failures on a skippable repository still fail", async () => {
+  for (const error of [httpError(500), new Error("network down")]) {
+    await assert.rejects(
+      () =>
+        validateMarketplace(
+          input({
+            getRelease: async () => {
+              throw error;
+            },
+            skippableRepositories: new Set([repository]),
+          }),
+        ),
+      (thrown) => thrown === error,
+    );
+  }
+});

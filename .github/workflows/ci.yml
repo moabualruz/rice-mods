@@ -22,3 +22,5 @@ jobs:
       - name: Install Claude Code marketplace validator
         run: npm install --global @anthropic-ai/claude-code@2.1.309
       - run: just ci
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
