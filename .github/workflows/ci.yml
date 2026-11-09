@@ -18,7 +18,32 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - uses: extractions/setup-just@v3
+      # Pinned just: the release tarball is cached by version and SHA-256 and re-verified against the pin on every
+      # restore (a mismatching cache fails the job); on a miss it is downloaded with bounded retries and the pin
+      # enforced by the vendored tools/fetch/fetch-asset.sh (hosted runners use the origin, no mirror).
+      - name: Restore pinned just
+        id: just-cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.cache/rice-just
+          key: just-1.59.0-x86_64-unknown-linux-musl-409044617b6f06517c1035e55ca38c8c856ff8b650e41bc2aa1ef82d5903a23e
+      - name: Install pinned just
+        env:
+          JUST_VERSION: 1.59.0
+          JUST_SHA256: 409044617b6f06517c1035e55ca38c8c856ff8b650e41bc2aa1ef82d5903a23e
+          CACHE_HIT: ${{ steps.just-cache.outputs.cache-hit }}
+        run: |
+          set -euo pipefail
+          tarball="$HOME/.cache/rice-just/just.tar.gz"
+          mkdir -p "$HOME/.cache/rice-just" "$HOME/.local/just"
+          if [ "$CACHE_HIT" = true ]; then
+            echo "$JUST_SHA256  $tarball" | sha256sum -c -
+          else
+            bash tools/fetch/fetch-asset.sh "https://github.com/casey/just/releases/download/$JUST_VERSION/just-$JUST_VERSION-x86_64-unknown-linux-musl.tar.gz" "$JUST_SHA256" "$tarball"
+          fi
+          tar -xzf "$tarball" -C "$HOME/.local/just" just
+          echo "$HOME/.local/just" >> "$GITHUB_PATH"
+          "$HOME/.local/just/just" --version
       - name: Install Claude Code marketplace validator
         run: npm install --global @anthropic-ai/claude-code@2.1.309
       - run: just ci

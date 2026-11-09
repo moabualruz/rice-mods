@@ -11,3 +11,12 @@ directories:
         includePaths:
           - templates/packages/**/*
         newRootPath: templates/packages
+  - path: tools/fetch
+    contents:
+      - path: .
+        git:
+          url: https://github.com/moabualruz/rice-release.git
+          ref: templates-v0.3.8
+        includePaths:
+          - templates/fetch/**/*
+        newRootPath: templates/fetch
