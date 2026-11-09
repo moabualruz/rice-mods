@@ -3,11 +3,16 @@
 # The single download path for the family's pinned tool installers (vendir, GoReleaser, Syft,
 # cyclonedx-gomod, cosign, minisign, Maestro and the like), vendored with Carvel vendir.
 #
-# An upstream 5xx, 408, 425 or 429, or a transport error, is retried with exponential backoff that honors a
-# numeric Retry-After. Any other HTTP status fails at once. When RICE_ASSET_MIRROR names a raw proxy of the
-# origin (a caching raw proxy repository on the runner's private network), the mirror is tried first and
-# the origin is the fallback; content from either source must match the pin. A mismatch
-# from the mirror falls back to the origin; a mismatch from the origin fails closed.
+# Only transient failures are retried, with exponential backoff that honors a numeric Retry-After: HTTP 5xx,
+# 408, 425 and 429, and the curl transport errors in TRANSIENT_CURL_EXITS (connect, timeout, partial transfer,
+# empty reply, send and receive errors). Everything else, such as a certificate failure, an unresolvable host or
+# any other HTTP status, fails at once.
+#
+# When RICE_ASSET_MIRROR names a raw proxy of the origin (a caching raw proxy repository on the runner's private
+# network), the mirror is tried first. The origin is used only when the mirror is unavailable: its transient
+# failures are exhausted or it answers 404 (not cached). A checksum mismatch from the mirror fails closed (a
+# poisoned or stale mirror must be surfaced; unset RICE_ASSET_MIRROR to bypass it), and so does any other
+# mirror failure. A checksum mismatch from the origin fails closed.
 set -euo pipefail
 
 usage() {
@@ -30,10 +35,10 @@ Environment:
 
 Exit codes:
   0  DEST written and verified
-  1  download failed (retries exhausted or a non-retryable status)
+  1  download failed (retries exhausted, a non-retryable status or transport error, or a mirror failure)
   2  usage error
   3  curl missing
-  4  origin content did not match the pinned SHA-256
+  4  mirror or origin content did not match the pinned SHA-256
 EOF
 }
 
@@ -95,7 +100,13 @@ tmp="$(mktemp "${dest}.XXXXXX")"
 hdr="$(mktemp "${dest}.hdr.XXXXXX")"
 trap 'rm -f "$tmp" "$hdr"' EXIT
 
-# try_source LABEL URL ATTEMPTS: 0 verified, 1 failed, 4 checksum mismatch.
+# curl exit codes that mean a transient transport failure: 7 connect failed, 18 partial transfer, 28 timeout,
+# 52 empty reply, 55 send error, 56 receive error, 92 HTTP/2 stream error. An allowlist: any other curl failure
+# (a certificate problem, an unresolvable host, a bad URL, a local write error) is permanent.
+TRANSIENT_CURL_EXITS=" 7 18 28 52 55 56 92 "
+
+# try_source LABEL URL ATTEMPTS: 0 verified, 1 permanent failure, 4 checksum mismatch, 5 unavailable (transient
+# failures exhausted, or a mirror 404 meaning not cached).
 try_source() {
   local label="$1" src="$2" n="$3" i=1 rc code delay retry_after got
   while :; do
@@ -111,23 +122,27 @@ try_source() {
       return 4
     fi
     if [ "$rc" -ne 0 ]; then
-      case "$rc" in
-      1 | 2 | 3 | 23 | 27 | 43)
+      case "$TRANSIENT_CURL_EXITS" in
+      *" $rc "*) echo "fetch-asset: $label attempt $i/$n curl exit $rc for $(show "$src")" >&2 ;;
+      *)
         echo "fetch-asset: $label curl exit $rc for $(show "$src"); not retryable" >&2
         return 1
         ;;
       esac
-      echo "fetch-asset: $label attempt $i/$n curl exit $rc for $(show "$src")" >&2
     else
-      case "$code" in
-      408 | 425 | 429 | 5[0-9][0-9]) echo "fetch-asset: $label attempt $i/$n HTTP $code for $(show "$src")" >&2 ;;
+      case "$label-$code" in
+      mirror-404)
+        echo "fetch-asset: mirror HTTP 404 for $(show "$src") (not cached)" >&2
+        return 5
+        ;;
+      *-408 | *-425 | *-429 | *-5[0-9][0-9]) echo "fetch-asset: $label attempt $i/$n HTTP $code for $(show "$src")" >&2 ;;
       *)
         echo "fetch-asset: $label HTTP $code for $(show "$src"); not retryable" >&2
         return 1
         ;;
       esac
     fi
-    [ "$i" -lt "$n" ] || return 1
+    [ "$i" -lt "$n" ] || return 5
     delay=$((base_delay << (i - 1)))
     [ "$delay" -le "$max_delay" ] || delay="$max_delay"
     retry_after="$(tr -d '\r' <"$hdr" | sed -n 's/^[Rr][Ee][Tt][Rr][Yy]-[Aa][Ff][Tt][Ee][Rr]:[[:space:]]*\([0-9][0-9]*\)[[:space:]]*$/\1/p' | tail -1)"
@@ -148,17 +163,30 @@ if [ -n "$mirror" ] && [ "${url#"$origin_prefix"}" != "$url" ]; then
   [ "$attempts" -ge 2 ] || mirror_attempts="$attempts"
   rc=0
   try_source mirror "${mirror%/}/${url#"$origin_prefix"}" "$mirror_attempts" || rc=$?
-  if [ "$rc" -eq 0 ]; then
+  case "$rc" in
+  0)
     mv "$tmp" "$dest"
     exit 0
-  fi
-  echo "fetch-asset: mirror unavailable; falling back to the origin" >&2
+    ;;
+  5) echo "fetch-asset: mirror unavailable; falling back to the origin" >&2 ;;
+  4)
+    echo "fetch-asset: the mirror served content that does not match the pin; failing closed (unset RICE_ASSET_MIRROR to bypass the mirror)" >&2
+    exit 4
+    ;;
+  *)
+    echo "fetch-asset: mirror failed permanently; failing closed (unset RICE_ASSET_MIRROR to bypass the mirror)" >&2
+    exit 1
+    ;;
+  esac
 fi
 
 rc=0
 try_source origin "$url" "$attempts" || rc=$?
-if [ "$rc" -ne 0 ]; then
-  [ "$rc" -eq 4 ] || echo "fetch-asset: giving up on $(show "$url")" >&2
-  exit "$rc"
-fi
-mv "$tmp" "$dest"
+case "$rc" in
+0) mv "$tmp" "$dest" ;;
+4) exit 4 ;;
+*)
+  echo "fetch-asset: giving up on $(show "$url")" >&2
+  exit 1
+  ;;
+esac

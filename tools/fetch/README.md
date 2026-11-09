@@ -9,13 +9,19 @@ fetch-asset.sh [--attempts N] [--base-delay S] [--max-delay S] [--max-time S] UR
 ```
 
 - Writes DEST only when the content's SHA-256 equals the pin; the move is atomic.
-- Retries an HTTP 5xx, 408, 425 or 429, or a transport error, up to 5 attempts per source with
-  exponential backoff (2, 4, 8, 16 seconds, capped at 30) and honors a numeric `Retry-After` up to the
-  cap. Any other status fails at once.
+- Retries only transient failures, up to 5 attempts per source with exponential backoff (2, 4, 8, 16
+  seconds, capped at 30), honoring a numeric `Retry-After` up to the cap: HTTP 5xx, 408, 425 and 429, and
+  the curl transport errors 7 (connect), 18 (partial transfer), 28 (timeout), 52 (empty reply), 55 and 56
+  (send and receive) and 92 (HTTP/2 stream). Anything else, such as a certificate failure, an unresolvable
+  host or another HTTP status, fails at once.
 - `RICE_ASSET_MIRROR` names a raw proxy of `https://github.com/` (override the prefix with
-  `RICE_ASSET_MIRROR_ORIGIN`). The mirror gets 2 attempts first; on failure or a checksum mismatch the
-  origin is used. A checksum mismatch from the origin fails closed with exit 4.
-- Exit codes: 0 written, 1 download failed, 2 usage, 3 curl missing, 4 origin checksum mismatch.
+  `RICE_ASSET_MIRROR_ORIGIN`). The mirror gets 2 attempts first. The origin is used only when the mirror
+  is unavailable: its transient failures are exhausted or it answers 404 (not cached). A checksum
+  mismatch from the mirror fails closed with exit 4 and any other mirror failure with exit 1, without
+  contacting the origin: a poisoned or stale mirror is surfaced, and operators unset `RICE_ASSET_MIRROR`
+  to bypass it. A checksum mismatch from the origin fails closed with exit 4.
+- Exit codes: 0 written, 1 download failed, 2 usage, 3 curl missing, 4 checksum mismatch (mirror or
+  origin).
 
 ## Vendoring
 

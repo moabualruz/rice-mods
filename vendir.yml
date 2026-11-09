@@ -16,7 +16,7 @@ directories:
       - path: .
         git:
           url: https://github.com/moabualruz/rice-release.git
-          ref: a167af6c3e6bf80ccbc6eadefbd9d37c5f480136
+          ref: a47de487fd05eb945c20a4c7db2e5d254bf8df2a
         includePaths:
           - templates/fetch/**/*
         newRootPath: templates/fetch
