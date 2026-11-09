@@ -10,11 +10,11 @@ directories:
   path: release-packages
 - contents:
   - git:
-      commitTitle: 'fix: fail closed on mirror mismatch, retry only transient errors,
-        refuse conflicting signing fields...'
-      sha: a47de487fd05eb945c20a4c7db2e5d254bf8df2a
+      commitTitle: 'fix(templates): one retrying, mirror-first, checksum-pinned asset
+        fetcher (#18)...'
+      sha: 8086d2f48dcb150958a8b44897a14dd98fbeece3
       tags:
-      - templates-v0.3.7-69-ga47de48
+      - templates-v0.3.8
     path: .
   path: tools/fetch
 kind: LockConfig
