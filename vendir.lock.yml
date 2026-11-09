@@ -8,4 +8,13 @@ directories:
       - templates-v0.3.7
     path: .
   path: release-packages
+- contents:
+  - git:
+      commitTitle: 'fix(templates): one retrying, mirror-first, checksum-pinned asset
+        fetcher...'
+      sha: a167af6c3e6bf80ccbc6eadefbd9d37c5f480136
+      tags:
+      - templates-v0.3.7-65-ga167af6
+    path: .
+  path: tools/fetch
 kind: LockConfig
