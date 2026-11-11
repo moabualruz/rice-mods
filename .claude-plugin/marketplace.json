@@ -10,7 +10,7 @@
       "source": {
         "source": "github",
         "repo": "moabualruz/rice-session-accounts",
-        "sha": "904ec72f6f90dca5793695702cca2f5069bb0d02"
+        "sha": "b6a703199c2324b210d517772c67a915f4cae1a4"
       },
       "description": "Choose an Anthropic OAuth account by email and tier for this session, with resumable setup and the machine configuration preserved"
     },
@@ -19,7 +19,7 @@
       "source": {
         "source": "github",
         "repo": "moabualruz/rice-multi-models",
-        "sha": "ecfd4ee5b083b1a3673843d154fff402e0c4d458"
+        "sha": "33d4a450af69450f6debaff27d420fa19071fd97"
       },
       "description": "Codex (ChatGPT subscription), OpenCode Zen and Go, and configured Chat Completions, Responses, Anthropic, Gemini or Bedrock endpoints and local servers as session and native subagent models in Claude Code, no proxy"
     }
