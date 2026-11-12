@@ -63,7 +63,19 @@ function verifySource(entry) {
   const bytes = Buffer.from(file.content, "base64");
   const blob = createHash("sha1").update(`blob ${bytes.length}\0`).update(bytes).digest("hex");
   const text = bytes.toString("utf8");
-  const prose = text.split(/<!--|-->/).filter((_, index) => index % 2 === 0).join("").split(/\r?\n/).filter((line) => !/^\s*#/.test(line)).join(" ").replace(/[^\p{L}\p{N}]/gu, "");
+  let visible = "";
+  let position = 0;
+  while (position < text.length) {
+    const start = text.indexOf("<!--", position);
+    if (start === -1) { visible += text.slice(position); break; }
+    visible += text.slice(position, start);
+    const normal = text.indexOf("-->", start + 4);
+    const alternate = text.indexOf("--!>", start + 4);
+    const end = normal === -1 ? alternate : alternate === -1 ? normal : Math.min(normal, alternate);
+    if (end === -1) break;
+    position = end + (end === alternate ? 4 : 3);
+  }
+  const prose = visible.split(/\r?\n/).filter((line) => !/^\s*#/.test(line)).join(" ").replace(/[^\p{L}\p{N}]/gu, "");
   if (prose.length < 40 || /^[\t ]*-[\t ]+[^:]+:[\t ]*\[[^\]]+\][\t ]*$|^[\t ]*\[[^\]]+\][\t ]*$/m.test(text)) fail(`LIMITS.md is not substantive or contains placeholders: ${entry.repo}`);
   if (blob !== file.sha) fail(`Invalid LIMITS.md blob: ${entry.repo}`);
   return blob;
