@@ -59,6 +59,28 @@ test("rejects a marketplace entry without a lock entry", () => {
   assert.notEqual(run(root, "verify").status, 0);
 });
 
+test("rejects extra or duplicate lock entries", () => {
+  const root = generated();
+  const path = join(root, ".claude-plugin/marketplace.lock.json");
+  const lock = JSON.parse(readFileSync(path, "utf8"));
+  lock.plugins.push({ ...lock.plugins[0] });
+  writeFileSync(path, JSON.stringify(lock));
+  assert.notEqual(run(root, "verify").status, 0);
+});
+
+test("rejects changed marketplace commits and README versions", () => {
+  const root = generated();
+  const marketplacePath = join(root, ".claude-plugin/marketplace.json");
+  const marketplace = JSON.parse(readFileSync(marketplacePath, "utf8"));
+  marketplace.plugins[0].source.sha = "b".repeat(40);
+  writeFileSync(marketplacePath, JSON.stringify(marketplace));
+  assert.notEqual(run(root, "verify").status, 0);
+  marketplace.plugins[0].source.sha = sha;
+  writeFileSync(marketplacePath, JSON.stringify(marketplace));
+  writeFileSync(join(root, "README.md"), "| [Example](https://github.com/owner/example#readme) 1.2.4 | Example |\n");
+  assert.notEqual(run(root, "verify").status, 0);
+});
+
 test("rejects a moved tag in online mode", () => {
   const root = generated();
   assert.equal(run(root, "verify-online").status, 0);
@@ -68,6 +90,7 @@ test("rejects a moved tag in online mode", () => {
 test("rejects an absent or placeholder LIMITS.md", () => {
   const root = generated();
   assert.notEqual(run(root, "generate", { NO_LIMITS: "1" }).status, 0);
+  assert.notEqual(run(root, "verify-online", { NO_LIMITS: "1" }).status, 0);
   assert.notEqual(run(root, "generate", { PLACEHOLDER: "1" }).status, 0);
   assert.notEqual(run(root, "generate", { SHORT: "1" }).status, 0);
 });
