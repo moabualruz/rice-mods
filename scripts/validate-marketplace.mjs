@@ -1,6 +1,12 @@
 import { readFile } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
 import { createGithubJsonFetcher } from "./github-fetch.mjs";
 import { validateMarketplace } from "./marketplace-validation.mjs";
+
+const live = process.env.LIVE_RELEASE_CHECK === "required";
+const lockCheck = spawnSync(process.execPath, [new URL("./marketplace-lock.mjs", import.meta.url).pathname, live ? "verify-online" : "verify"], { stdio: "inherit" });
+if (lockCheck.status !== 0) process.exit(lockCheck.status || 1);
+if (!live) process.exit(0);
 
 const marketplace = JSON.parse(await readFile(".claude-plugin/marketplace.json", "utf8"));
 const readme = await readFile("README.md", "utf8");
@@ -11,6 +17,7 @@ const hostedSkipAllowed = process.env.GITHUB_ACTIONS === "true" && process.env.L
 const validated = await validateMarketplace({
   marketplace,
   readme,
+  lock: JSON.parse(await readFile(".claude-plugin/marketplace.lock.json", "utf8")),
   skippableRepositories: hostedSkipAllowed ? new Set(privateRepositories) : new Set(),
   onSkip: ({ repository, tag, status }) =>
     console.log(

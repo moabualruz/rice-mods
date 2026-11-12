@@ -10,7 +10,7 @@ const manifestCheck = "if (manifest.name !== plugin.name || manifest.version !==
 test("the manifest mismatch assertion detects a weakened name/version check", async () => {
   const source = await readFile(new URL("./marketplace-validation.mjs", import.meta.url), "utf8");
   assert.equal(source.split(manifestCheck).length - 1, 1, "expected exactly one manifest identity check to mutate");
-  const weakenedSource = source.replace(manifestCheck, "if (false) {");
+  const weakenedSource = source.replace(manifestCheck, "if (false) {").replace("./marketplace-lock.mjs", new URL("./marketplace-lock.mjs", import.meta.url).href);
   const weakenedModule = await import(
     `data:text/javascript;base64,${Buffer.from(weakenedSource).toString("base64")}`
   );

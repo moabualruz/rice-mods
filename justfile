@@ -12,6 +12,15 @@ ci:
     node --test scripts/*.test.mjs
     node scripts/validate-marketplace.mjs
 
+marketplace-lock-generate:
+    node scripts/marketplace-lock.mjs generate
+
+marketplace-lock-verify:
+    node scripts/marketplace-lock.mjs verify
+
+marketplace-lock-verify-online:
+    node scripts/marketplace-lock.mjs verify-online
+
 # Local gate: live release check against the private release repos. Needs a developer token
 # that can read them (for example GITHUB_TOKEN="$(gh auth token)"); never skips.
 validate-live:
