@@ -63,7 +63,7 @@ function verifySource(entry) {
   const bytes = Buffer.from(file.content, "base64");
   const blob = createHash("sha1").update(`blob ${bytes.length}\0`).update(bytes).digest("hex");
   const text = bytes.toString("utf8");
-  const prose = text.replace(/<!--(?:.|\n)*?-->/g, "").split(/\r?\n/).filter((line) => !/^\s*#/.test(line)).join(" ").replace(/[^\p{L}\p{N}]/gu, "");
+  const prose = text.split(/<!--|-->/).filter((_, index) => index % 2 === 0).join("").split(/\r?\n/).filter((line) => !/^\s*#/.test(line)).join(" ").replace(/[^\p{L}\p{N}]/gu, "");
   if (prose.length < 40 || /^[\t ]*-[\t ]+[^:]+:[\t ]*\[[^\]]+\][\t ]*$|^[\t ]*\[[^\]]+\][\t ]*$/m.test(text)) fail(`LIMITS.md is not substantive or contains placeholders: ${entry.repo}`);
   if (blob !== file.sha) fail(`Invalid LIMITS.md blob: ${entry.repo}`);
   return blob;

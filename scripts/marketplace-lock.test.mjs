@@ -21,7 +21,7 @@ const arg = process.argv[3];
 if (arg.includes('/commits/')) console.log(JSON.stringify({sha: process.env.MOVED ? '${"b".repeat(40)}' : '${sha}'}));
 else if (process.env.NO_LIMITS) process.exit(1);
 else {
- const text = process.env.PLACEHOLDER ? '- Host: [fill in]\\n' : process.env.SHORT ? '# Limits\\n\\nNone.\\n' : '# Limits\\n\\nHost permissions remain in force. Network access depends on provider configuration.\\n';
+ const text = process.env.PLACEHOLDER ? '- Host: [fill in]\\n' : process.env.SHORT ? '# Limits\\n\\n<!-- This comment is intentionally long but is not substantive visible documentation. -->\\nNone.\\n' : '# Limits\\n\\nHost permissions remain in force. Network access depends on provider configuration.\\n';
  const bytes = Buffer.from(text);
  const blob = createHash('sha1').update('blob ' + bytes.length + '\\0').update(bytes).digest('hex');
  console.log(JSON.stringify({type: 'file', encoding: 'base64', content: bytes.toString('base64'), sha: blob}));
