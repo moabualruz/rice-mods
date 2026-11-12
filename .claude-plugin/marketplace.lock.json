@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "plugins": [
+    {
+      "repo": "moabualruz/rice-session-accounts",
+      "tag": "rice-session-accounts--v0.6.1",
+      "commit": "b6a703199c2324b210d517772c67a915f4cae1a4",
+      "limits": "447d3ae81974d7d6595085bce1fd430d54361a6f"
+    },
+    {
+      "repo": "moabualruz/rice-multi-models",
+      "tag": "rice-multi-models--v0.17.7",
+      "commit": "33d4a450af69450f6debaff27d420fa19071fd97",
+      "limits": "b01770e74f2eb0153e6afe4cfb80d28e3bac6ae3"
+    }
+  ]
+}

@@ -14,6 +14,8 @@ inference proxy or gateway.
 
 The release-lane per-product limits requirements and source-derived product rows are documented in [docs/mod-release-assets.md](docs/mod-release-assets.md).
 
+The marketplace lock records each public repository name, release tag and commit pin, plus the Git blob ID of its `LIMITS.md`. `just marketplace-lock-verify` checks the lock, marketplace and README agree offline; it cannot prove the source or limits content. A maintainer with authenticated access can run `just marketplace-lock-verify-online` to check each tag and substantive limits file at its pin. After updating pins, regenerate the lock with `just marketplace-lock-generate` using authenticated access; do not edit it by hand.
+
 Rice Accounts manages Anthropic OAuth sign-ins and setup tokens. API keys,
 provider endpoints, cloud providers and other model subscriptions belong in
 Rice MultiModels. Provider requests are direct calls. Claude Code retains native

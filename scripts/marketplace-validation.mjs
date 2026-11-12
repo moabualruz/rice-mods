@@ -1,3 +1,5 @@
+import { validateMarketplaceLock } from "./marketplace-lock.mjs";
+
 function fail(message) {
   throw new Error(message);
 }
@@ -7,12 +9,14 @@ const SKIPPABLE_STATUSES = new Set([401, 403, 404]);
 export async function validateMarketplace({
   marketplace,
   readme,
+  lock,
   getRelease,
   getManifest,
   getCommit,
   skippableRepositories = new Set(),
   onSkip,
 }) {
+  if (lock !== undefined) validateMarketplaceLock(marketplace, readme, lock);
   const readmeVersions = new Map();
   const versionRows = readme.matchAll(
     /^\|\s*\[[^\]]+\]\(https:\/\/github\.com\/([^)#]+)(?:#readme)?\)\s+(\d+\.\d+\.\d+)\s+\|/gm,
