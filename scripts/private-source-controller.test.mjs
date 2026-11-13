@@ -61,6 +61,7 @@ const server = createServer({ key, cert: readFileSync(certFile) }, async (req, r
   scenario.calls.push({ method: req.method, path });
   if (req.method !== 'GET') assert.match(readFileSync(custodyLog, 'utf8'), /held\n$/);
   const json = (status, value) => { res.writeHead(status, { 'content-type': 'application/json', 'x-github-request-id': 'FIXTURE' }); res.end(value === undefined ? undefined : JSON.stringify(value)); };
+  if (path === '/meta') return json(200, { installed_version: '3.20.0' });
   if (path === `/repos/${repo}`) return json(200, { id: 77, full_name: repo, name: 'rice-mods', owner: { login: 'moabualruz' }, private: true, default_branch: 'main', permissions: { admin: true } });
   if (path === `/repos/${repo}/git/ref/heads/main`) return json(200, { object: { sha: scenario.mode === 'moved-head' ? 'b'.repeat(40) : head } });
   if (path === `/repos/${repo}/git/commits/${head}`) return json(200, { sha: head, tree: { sha: 'c'.repeat(40) } });
@@ -126,8 +127,9 @@ const proxy = createProxy(socket => {
 });
 await new Promise(r => proxy.listen(0, '127.0.0.1', r));
 const config = join(target, 'gh-config'); mkdirSync(config, { recursive: true });
+const cache = join(target, 'cache'); mkdirSync(cache, { mode: 0o700 });
 writeFileSync(join(config, 'hosts.yml'), 'fixture.invalid:\n    git_protocol: https\n    oauth_token: fixture-native-operator\n');
-const env = { ...process.env, HTTPS_PROXY: `http://127.0.0.1:${proxy.address().port}`, HTTP_PROXY: `http://127.0.0.1:${proxy.address().port}`, NO_PROXY: '', ALL_PROXY: '', GH_CONFIG_DIR: config, GH_HOST: 'fixture.invalid', GH_TOKEN: 'fixture-native-operator', SSL_CERT_FILE: certFile, GH_NO_UPDATE_NOTIFIER: '1', RICE_RELEASE_DOWNLOAD_TOKEN: fake, RICE_RELEASE_DOWNLOAD_TOKEN_EXPIRES_AT: new Date(Date.now() + 60 * 60_000).toISOString() };
+const env = { ...process.env, HTTPS_PROXY: `http://127.0.0.1:${proxy.address().port}`, HTTP_PROXY: `http://127.0.0.1:${proxy.address().port}`, NO_PROXY: '', ALL_PROXY: '', GH_CONFIG_DIR: config, XDG_CACHE_HOME: cache, GH_HOST: 'fixture.invalid', GH_TOKEN: 'fixture-native-operator', SSL_CERT_FILE: certFile, GH_NO_UPDATE_NOTIFIER: '1', RICE_RELEASE_DOWNLOAD_TOKEN: fake, RICE_RELEASE_DOWNLOAD_TOKEN_EXPIRES_AT: new Date(Date.now() + 60 * 60_000).toISOString() };
 const proof = [];
 const preserved = join(target, 'existing-operation');
 mkdirSync(preserved);
