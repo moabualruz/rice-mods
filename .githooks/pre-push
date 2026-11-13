@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+head=$(git rev-parse HEAD)
+branch=$(git symbolic-ref --quiet HEAD) || { echo 'pre-push: a checked-out branch is required' >&2; exit 1; }
+while read -r local_ref local_sha _remote_ref _remote_sha; do
+  [ "$local_sha" != 0000000000000000000000000000000000000000 ] || continue
+  [ "$local_sha" = "$head" ] && [ "$local_ref" = "$branch" ] || {
+    echo 'pre-push: push only the checked-out candidate; use its own worktree' >&2
+    exit 1
+  }
+done
+just worktree-doctor </dev/null
+exec git-canonical-gate </dev/null

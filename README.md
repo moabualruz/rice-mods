@@ -18,6 +18,8 @@ The marketplace lock records each private repository name, release tag and commi
 
 The trusted [private source qualification controller](docs/private-source-qualification.md) binds manual main-only checks to one source, a short-lived read session, and owned cleanup. Ordinary pull request CI receives no private source token.
 
+For development, run `just worktree-doctor` before the gate. It reports missing tools or vendored files and the bootstrap command. The repository pre-push hook runs readiness first, then delegates to the installed `git-canonical-gate`; it accepts only the checked-out candidate. Install the maintained adapter with `rice-agent install` when it is missing.
+
 Rice Accounts manages Anthropic OAuth sign-ins and setup tokens. API keys,
 provider endpoints, cloud providers and other model subscriptions belong in
 Rice MultiModels. Provider requests are direct calls. Claude Code retains native
