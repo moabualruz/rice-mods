@@ -26,6 +26,7 @@ function fixture(plugins = [source()]) {
   writeFileSync(join(root, "bin/gh"), `#!/usr/bin/env bash
 set -euo pipefail
 [ "$1" = api ] || exit 90
+[ "$GH_TOKEN" = "$FIXTURE_EXPECTED_TOKEN" ] || exit 91
 printf '%s\\n' "$2" >> "$FIXTURE_ROOT/requests"
 if [ "$FIXTURE_STATUS" != success ]; then
   printf 'HTTP %s %s\\n' "$FIXTURE_STATUS" "$GITHUB_TOKEN" >&2
@@ -43,10 +44,10 @@ printf '{"success":true,"manifest":{"errors":[]},"contents":[]}\\n'
   return root;
 }
 
-function run(root, extra = {}) {
-  return spawnSync("bash", [join(root, "scripts/plugin-source-check.sh")], {
+function run(root, extra = {}, args = []) {
+  return spawnSync("bash", [join(root, "scripts/plugin-source-check.sh"), ...args], {
     encoding: "utf8",
-    env: { PATH: `${join(root, "bin")}:${process.env.PATH}`, HOME: root, FIXTURE_ROOT: root, FIXTURE_STATUS: "404", FIXTURE_VALIDATOR_FAIL: "false", GITHUB_ACTIONS: "true", GITHUB_TOKEN: "synthetic-token-sentinel", ...extra },
+    env: { PATH: `${join(root, "bin")}:${process.env.PATH}`, HOME: root, FIXTURE_ROOT: root, FIXTURE_STATUS: "404", FIXTURE_VALIDATOR_FAIL: "false", FIXTURE_EXPECTED_TOKEN: "synthetic-token-sentinel", GITHUB_ACTIONS: "true", GITHUB_TOKEN: "synthetic-token-sentinel", ...extra },
   });
 }
 
@@ -62,6 +63,22 @@ test("hosted skips only declared private repositories for unreadable status code
   const result = run(root);
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /cannot download other.*HTTP 404/);
+});
+
+test("a scoped operation checks exactly one declared source and rejects unknown selectors", () => {
+  const root = fixture([source(), source("other", "owner/other")]);
+  const result = run(root, { FIXTURE_STATUS: "success", LIVE_RELEASE_CHECK: "required", RICE_RELEASE_DOWNLOAD_TOKEN: "synthetic-scoped-token", FIXTURE_EXPECTED_TOKEN: "synthetic-scoped-token" }, ["--repo", "owner/example"]);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /1 checked, 0 skipped/);
+  assert.equal(readFileSync(join(root, "requests"), "utf8"), `repos/owner/example/tarball/${sha}\n`);
+  for (const args of [["--repo", "owner/other"], ["--repo", "owner/unknown"], ["--repo", "../escape"], ["--unknown"], ["--repo"]]) {
+    const isolated = fixture([source(), source("other", "owner/other")]);
+    assert.notEqual(run(isolated, {}, args).status, 0);
+    assert.ok(!existsSync(join(isolated, "requests")));
+  }
+  const unselected = fixture();
+  assert.notEqual(run(unselected, { RICE_RELEASE_DOWNLOAD_TOKEN: "synthetic-scoped-token" }).status, 0);
+  assert.ok(!existsSync(join(unselected, "requests")));
 });
 
 test("local and required checks refuse unreadable private repositories", () => {

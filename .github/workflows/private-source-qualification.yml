@@ -1,0 +1,55 @@
+name: Private source qualification
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_repository:
+        description: Exact private marketplace source to check
+        required: true
+        type: choice
+        options:
+          - moabualruz/rice-session-accounts
+          - moabualruz/rice-multi-models
+      expected_head:
+        description: Exact delivered main commit approved for this operation
+        required: true
+        type: string
+      token_expires_at:
+        description: Actual expiry returned by the repository-scoped issuer
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Require the exact main target
+        env:
+          EXPECTED_HEAD: ${{ inputs.expected_head }}
+        run: |
+          test "$GITHUB_REF" = refs/heads/main
+          test "$GITHUB_SHA" = "$EXPECTED_HEAD"
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.18.0
+      - name: Require sufficient session lifetime
+        env:
+          TOKEN_EXPIRES_AT: ${{ inputs.token_expires_at }}
+        run: node -e 'const expiry = Date.parse(process.env.TOKEN_EXPIRES_AT); if (!Number.isFinite(expiry) || expiry - Date.now() < 11 * 60 * 1000) process.exit(1)'
+      - name: Install the maintained marketplace validator
+        run: npm install --global @anthropic-ai/claude-code@2.1.309
+      - name: Verify the marketplace lock
+        run: node scripts/marketplace-lock.mjs verify
+      - name: Check the exact selected private source
+        env:
+          SOURCE_REPOSITORY: ${{ inputs.source_repository }}
+          LIVE_RELEASE_CHECK: required
+          GITHUB_TOKEN: ${{ secrets.MODS_SOURCE_READ_TOKEN }}
+        run: bash scripts/plugin-source-check.sh --repo "$SOURCE_REPOSITORY"

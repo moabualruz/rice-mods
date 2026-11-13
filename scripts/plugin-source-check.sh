@@ -7,10 +7,24 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
+selected_repository=""
+if [ "$#" -ne 0 ]; then
+  if [ "$#" -ne 2 ] || [ "$1" != --repo ]; then
+    echo "usage: plugin-source-check.sh [--repo OWNER/REPOSITORY]" >&2
+    exit 2
+  fi
+  selected_repository="$2"
+  [[ "$selected_repository" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || {
+    echo "plugin source check: invalid selected repository" >&2
+    exit 1
+  }
+fi
+
 sources="$(jq -er '
   .plugins
   | if type != "array" or length == 0 then error("invalid plugins") else . end
   | if ([.[].name] | unique | length) != length then error("duplicate plugin name") else . end
+  | if ([.[].source.repo] | unique | length) != length then error("duplicate plugin repository") else . end
   | .[]
   | if (.name | type != "string") or (.source.repo | type != "string") or (.source.sha | type != "string")
     then error("invalid source fields") else . end
@@ -31,10 +45,22 @@ private_repositories="$(jq -er '
   echo "plugin source check: invalid private repository allowlist" >&2
   exit 1
 }
+if [ -n "$selected_repository" ]; then
+  sources="$(printf '%s\n' "$sources" | awk -F '\t' -v repository="$selected_repository" '$2 == repository')"
+  [ -n "$sources" ] || { echo "plugin source check: selected repository is not in the marketplace" >&2; exit 1; }
+  printf '%s\n' "$private_repositories" | grep -Fqx -- "$selected_repository" || {
+    echo "plugin source check: selected repository is not declared private" >&2
+    exit 1
+  }
+fi
 
 hosted_skip=false
 if [ "${GITHUB_ACTIONS:-}" = true ] && [ "${LIVE_RELEASE_CHECK:-}" != required ]; then hosted_skip=true; fi
-token="${GITHUB_TOKEN:-$(gh auth token 2>/dev/null || true)}"
+if [ -n "${RICE_RELEASE_DOWNLOAD_TOKEN:-}" ] && [ -z "$selected_repository" ]; then
+  echo "plugin source check: a repository-scoped session requires --repo" >&2
+  exit 1
+fi
+token="${RICE_RELEASE_DOWNLOAD_TOKEN:-${GITHUB_TOKEN:-$(gh auth token 2>/dev/null || true)}}"
 if [ -z "$token" ] && [ "$hosted_skip" = false ]; then
   echo "plugin source check: no token that can read the private sources" >&2
   exit 1
