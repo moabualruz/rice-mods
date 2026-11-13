@@ -2,10 +2,35 @@
 # Run the vendored release-packages/scripts/plugin.sh check against each exact marketplace source pin.
 # Sources are private, so a token that can read them is required (GITHUB_TOKEN or `gh auth token`), passed to gh
 # through the environment only. Hosted CI cannot read them (the default token is limited to this repository):
-# there, and only there (GITHUB_ACTIONS=true without LIVE_RELEASE_CHECK=required), an unreadable source is skipped
-# explicitly and reported. A source that downloads is always checked, and every other failure fails.
+# there, and only there (GITHUB_ACTIONS=true without LIVE_RELEASE_CHECK=required), an unreadable declared private
+# source is skipped explicitly and reported. A source that downloads is always checked, and every other failure fails.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+sources="$(jq -er '
+  .plugins
+  | if type != "array" or length == 0 then error("invalid plugins") else . end
+  | if ([.[].name] | unique | length) != length then error("duplicate plugin name") else . end
+  | .[]
+  | if (.name | type != "string") or (.source.repo | type != "string") or (.source.sha | type != "string")
+    then error("invalid source fields") else . end
+  | if (.name | test("^[a-z][a-z0-9-]*$")) and .source.source == "github"
+      and (.source.repo | test("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"))
+      and (.source.sha | test("^[0-9a-f]{40}$"))
+    then [.name, .source.repo, .source.sha] | @tsv else error("invalid source") end
+' .claude-plugin/marketplace.json 2>/dev/null)" || {
+  echo "plugin source check: invalid marketplace source input" >&2
+  exit 1
+}
+private_repositories="$(jq -er '
+  if type != "array" then error("invalid private repositories") else . end
+  | if all(.[]; type == "string" and test("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"))
+      and (unique | length) == length
+    then join("\n") else error("invalid private repositories") end
+' scripts/private-repositories.json 2>/dev/null)" || {
+  echo "plugin source check: invalid private repository allowlist" >&2
+  exit 1
+}
 
 hosted_skip=false
 if [ "${GITHUB_ACTIONS:-}" = true ] && [ "${LIVE_RELEASE_CHECK:-}" != required ]; then hosted_skip=true; fi
@@ -23,19 +48,24 @@ while IFS=$'\t' read -r name repo sha; do
   [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || { echo "plugin source check: $name has no exact sha pin" >&2; exit 1; }
   dest="$work/$name"
   mkdir -p "$dest"
-  if ! GH_TOKEN="$token" gh api "repos/$repo/tarball/$sha" > "$work/$name.tgz" 2> "$work/$name.err"; then
-    if [ "$hosted_skip" = true ] && grep -Eq 'HTTP (401|403|404)' "$work/$name.err"; then
+  if failure="$(GH_TOKEN="$token" gh api "repos/$repo/tarball/$sha" 2>&1 > "$work/$name.tgz")"; then
+    :
+  else
+    status=native-command
+    if [[ "$failure" =~ HTTP\ ([0-9]{3}) ]]; then status="HTTP ${BASH_REMATCH[1]}"; fi
+    if [ "$hosted_skip" = true ] && [[ "$status" =~ ^HTTP\ (401|403|404)$ ]] \
+      && printf '%s\n' "$private_repositories" | grep -Fqx -- "$repo"; then
       echo "plugin source check skipped in hosted CI: $name source is not readable by the workflow token"
       skipped=$((skipped + 1))
       continue
     fi
-    echo "plugin source check: cannot download $name at $sha" >&2
+    echo "plugin source check: cannot download $name at $sha ($status)" >&2
     exit 1
   fi
   tar -xz --strip-components=1 -C "$dest" -f "$work/$name.tgz"
   echo "== $name $repo@$sha"
   bash release-packages/scripts/plugin.sh check "$dest"
   checked=$((checked + 1))
-done < <(jq -r '.plugins[] | select(.source.source == "github") | [.name, .source.repo, .source.sha] | @tsv' .claude-plugin/marketplace.json)
+done <<< "$sources"
 [ $((checked + skipped)) -gt 0 ] || { echo "plugin source check: no github plugin sources in marketplace" >&2; exit 1; }
 echo "plugin source check: $checked checked, $skipped skipped"

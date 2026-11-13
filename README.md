@@ -53,6 +53,8 @@ were both 2.1.310, so there was no newer version to qualify.
 
 ## Install
 
+This private marketplace requires repository read access and a configured Git credential helper; see [collaborator setup](#adding-a-private-marketplace-as-a-collaborator).
+
 Run the command for the mod you want, or run both commands:
 
 ```bash
