@@ -15,25 +15,64 @@ permissions:
 jobs:
   source:
     runs-on: ubuntu-latest
-    continue-on-error: true
     timeout-minutes: 20
-    permissions:
-      contents: read
-      security-events: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      - uses: github/codeql-action/init@793b778da9c9275a0f276522b27cb5fc14bba279
+      - name: Fetch immutable rules for internal scanning only
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          languages: javascript-typescript
-          build-mode: none
-      - uses: github/codeql-action/analyze@793b778da9c9275a0f276522b27cb5fc14bba279
-        with:
-          category: /language:javascript-typescript
+          repository: semgrep/semgrep-rules
+          ref: 16b9e6d45f10649f6a531ec4838ed9924372c3bc
+          path: .security-rules
+          persist-credentials: false
+      - name: Offline JavaScript and TypeScript source scan
+        id: scan
+        run: |
+          set -euo pipefail
+          set +e
+          docker run --rm --network none --read-only --cap-drop ALL \
+            --security-opt no-new-privileges:true --tmpfs /tmp:rw,nosuid,size=256m \
+            --env HOME=/tmp --env SEMGREP_SEND_METRICS=off --env SEMGREP_ENABLE_VERSION_CHECK=0 \
+            --mount "type=bind,source=$PWD,target=/src,readonly" --workdir /src \
+            semgrep/semgrep:1.183.0@sha256:fb59331f2772da4a9960692ae31961cd58a7c666c014125e9202c96bdfdc38cc \
+            semgrep scan --metrics off --disable-version-check --error --quiet --json \
+              --config .security-rules/javascript --config .security-rules/typescript \
+              --exclude .security-rules . 2>/dev/null |
+            jq -e -s '
+              if length != 1 then error("one scanner report required") else .[0] end
+              | if type != "object" or (.results | type) != "array"
+                  or (.errors | type) != "array" or (.paths.scanned | type) != "array"
+                then error("invalid scanner report") else . end
+              | {results: [.results[] | {check_id, path,
+                  start: {line: .start.line, col: .start.col, offset: .start.offset},
+                  end: {line: .end.line, col: .end.col, offset: .end.offset},
+                  severity: .extra.severity}],
+                 findings: (.results | length),
+                 errors: [.errors[] | {type, level}],
+                 paths_scanned: (.paths.scanned | length)}
+              | ., (if (.errors | length) > 0 or .paths_scanned == 0
+                    then error("incomplete scanner result") else empty end)
+            ' 2>/dev/null
+          statuses=("${PIPESTATUS[@]}")
+          set -e
+          printf 'Semgrep scanner exit=%s, sanitized report exit=%s. Findings are reporting-only.\n' \
+            "${statuses[0]}" "${statuses[1]}" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${statuses[1]}" -ne 0 ]; then
+            echo 'Semgrep report invalid, incomplete, or contains scanner errors.'
+            exit 1
+          fi
+          case "${statuses[0]}" in
+            0|1) ;;
+            *) echo 'Semgrep failed operationally; source scan is not complete.'; exit 1 ;;
+          esac
       - name: Record reporting status
         if: always()
-        run: printf 'CodeQL starts reporting-only. Findings and failed scans are not a clean baseline.\n' >> "$GITHUB_STEP_SUMMARY"
+        env:
+          SCAN_OUTCOME: ${{ steps.scan.outcome }}
+        run: |
+          printf 'Semgrep scan outcome: %s. Findings are reporting-only, not a clean baseline. Operational errors and zero-target scans fail. Source stays offline; reports omit captured values. Rules and their license notices remain in the temporary checkout for internal scanning only.\n' "$SCAN_OUTCOME" >> "$GITHUB_STEP_SUMMARY"
 
   secrets:
     runs-on: ubuntu-latest

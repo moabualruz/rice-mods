@@ -16,6 +16,10 @@ The release-lane per-product limits requirements and source-derived product rows
 
 The marketplace lock records each private repository name, release tag and commit pin, plus the Git blob ID of its `LIMITS.md`. `just marketplace-lock-verify` checks the lock, marketplace and README agree offline; it cannot prove the source or limits content. A maintainer with authenticated access can run `just marketplace-lock-verify-online` to check each tag and substantive limits file at its pin. After updating pins, regenerate the lock with `just marketplace-lock-generate` using authenticated access; do not edit it by hand. `just ci` also runs the vendored `plugin.sh check` against each exact pinned source tree (`scripts/plugin-source-check.sh`); it needs a token that can read the private sources and skips unreadable sources explicitly only in hosted CI.
 
+The trusted [private source qualification controller](docs/private-source-qualification.md) binds manual main-only checks to one source, a short-lived read session, and owned cleanup. Ordinary pull request CI receives no private source token.
+
+For development, run `just worktree-doctor` before the gate. It reports missing tools or vendored files and the bootstrap command. The repository pre-push hook runs readiness first, then delegates to the installed `git-canonical-gate`; it accepts only the checked-out candidate. Install the maintained adapter with `rice-agent install` when it is missing.
+
 Rice Accounts manages Anthropic OAuth sign-ins and setup tokens. API keys,
 provider endpoints, cloud providers and other model subscriptions belong in
 Rice MultiModels. Provider requests are direct calls. Claude Code retains native
@@ -52,6 +56,8 @@ time, installed Claude Code and the published `@anthropic-ai/claude-code` packag
 were both 2.1.310, so there was no newer version to qualify.
 
 ## Install
+
+This private marketplace requires repository read access and a configured Git credential helper; see [collaborator setup](#adding-a-private-marketplace-as-a-collaborator).
 
 Run the command for the mod you want, or run both commands:
 

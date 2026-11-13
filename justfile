@@ -6,6 +6,9 @@ release-sync:
 release-check:
     RELEASE_DIR=release-packages RELEASE_LOCK=release-packages.lock bash release-packages/scripts/vendor-lock.sh check
 
+worktree-doctor:
+    bash scripts/worktree-doctor.sh
+
 ci:
     just release-check
     claude plugin validate --strict .claude-plugin/marketplace.json

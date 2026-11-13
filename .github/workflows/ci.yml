@@ -15,9 +15,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3
         with:
-          node-version: 24
+          version: 2026.11.8
+          tool_versions: node 24.18.0
+          cache: false
       # Pinned just: the release tarball is cached by version and SHA-256 and re-verified against the pin on every
       # restore (a mismatching cache fails the job); on a miss it is downloaded with bounded retries and the pin
       # enforced by the vendored tools/fetch/fetch-asset.sh (hosted runners use the origin, no mirror).
