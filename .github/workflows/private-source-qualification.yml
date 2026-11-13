@@ -1,4 +1,5 @@
 name: Private source qualification
+run-name: 'Private source qualification: ${{ inputs.source_repository }}'
 
 on:
   workflow_dispatch:

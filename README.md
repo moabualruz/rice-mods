@@ -16,6 +16,8 @@ The release-lane per-product limits requirements and source-derived product rows
 
 The marketplace lock records each private repository name, release tag and commit pin, plus the Git blob ID of its `LIMITS.md`. `just marketplace-lock-verify` checks the lock, marketplace and README agree offline; it cannot prove the source or limits content. A maintainer with authenticated access can run `just marketplace-lock-verify-online` to check each tag and substantive limits file at its pin. After updating pins, regenerate the lock with `just marketplace-lock-generate` using authenticated access; do not edit it by hand. `just ci` also runs the vendored `plugin.sh check` against each exact pinned source tree (`scripts/plugin-source-check.sh`); it needs a token that can read the private sources and skips unreadable sources explicitly only in hosted CI.
 
+The trusted [private source qualification controller](docs/private-source-qualification.md) binds manual main-only checks to one source, a short-lived read session, and owned cleanup. Ordinary pull request CI receives no private source token.
+
 Rice Accounts manages Anthropic OAuth sign-ins and setup tokens. API keys,
 provider endpoints, cloud providers and other model subscriptions belong in
 Rice MultiModels. Provider requests are direct calls. Claude Code retains native
