@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { chmodSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdtempSync, writeFileSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -20,7 +20,7 @@ function fixture() {
 test('the production executable verifier admits only owned pinned bytes', () => {
   const { path, profile } = fixture();
   const verified = verifyHostExecutable(profile, 'tool');
-  assert.equal(verified.path, path);
+  assert.equal(verified.path, realpathSync(path));
   assert.equal(spawnSync(verified.path).status, 0);
 });
 
