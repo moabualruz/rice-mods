@@ -163,7 +163,7 @@ if (process.platform === 'linux' && process.arch === 'x64') {
   const helperBytes = '#!/bin/sh\nexit 91\n';
   writeFileSync(helper, helperBytes, { mode: 0o755 });
   writeFileSync(join(helperFixture, 'private-source-qualification.sh'), readFileSync(join(root, 'private-source-qualification.sh')));
-  writeFileSync(join(helperFixture, 'private-source-host.json'), JSON.stringify({ version: 1, platform: 'linux', architecture: 'x64', executables: { 'rice-helper': { path: helper, sha256: createHash('sha256').update(helperBytes).digest('hex') } } }));
+  writeFileSync(join(helperFixture, 'private-source-host.json'), JSON.stringify({ version: 1, platform: 'linux', architecture: 'x64', executables: { gh: { path: gh, sha256: ghSHA256 }, 'rice-helper': { path: helper, sha256: createHash('sha256').update(helperBytes).digest('hex') } } }));
   chmodSync(helperFixture, 0o775);
   const writableParentOperation = join(target, 'writable-helper-refusal');
   const writableParent = spawnSync('/bin/bash', [join(helperFixture, 'private-source-qualification.sh'), refusedBinding, writableParentOperation], { encoding: 'utf8', env: { ...process.env, HOME: emptyHome, PATH: hostileBin + ':/usr/bin:/bin' } });

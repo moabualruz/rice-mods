@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { chmodSync, mkdtempSync, writeFileSync, realpathSync } from 'node:fs';
+import { chmodSync, mkdtempSync, writeFileSync, readFileSync, realpathSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -39,4 +39,19 @@ test('the production profile and verifier refuse missing or unknown recipients',
   profile.executables.tool.path += '.missing';
   assert.throws(() => verifyHostExecutable(profile, 'tool'));
   assert.throws(() => verifyHostExecutable({ ...profile, platform: 'unsupported' }, 'tool'), /host profile required/);
+});
+
+test('a pinned gh wrapper is refused before credential preparation or execution', () => {
+  const { path, profile } = fixture();
+  profile.executables.gh = profile.executables.tool;
+  assert.throws(() => verifyHostExecutable(profile, 'gh'), /native ELF gh executable required/);
+  if (process.platform !== 'linux' || process.arch !== 'x64') return;
+  const root = mkdtempSync(join(tmpdir(), 'mods-gh-launcher-'));
+  writeFileSync(join(root, 'private-source-qualification.sh'), readFileSync(new URL('./private-source-qualification.sh', import.meta.url)));
+  writeFileSync(join(root, 'private-source-host.json'), JSON.stringify(profile));
+  const operation = join(root, 'operation');
+  const result = spawnSync('/bin/bash', [join(root, 'private-source-qualification.sh'), join(root, 'absent-binding.json'), operation], { encoding: 'utf8', env: { ...process.env, XDG_STATE_HOME: root } });
+  assert.equal(result.status, 69);
+  assert.match(result.stderr, /reviewed native gh executable unavailable/);
+  assert.ok(!existsSync(join(operation, 'helper-command.log')));
 });
