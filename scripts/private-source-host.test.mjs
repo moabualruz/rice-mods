@@ -55,3 +55,21 @@ test('a pinned gh wrapper is refused before credential preparation or execution'
   assert.match(result.stderr, /reviewed native gh executable unavailable/);
   assert.ok(!existsSync(join(operation, 'helper-command.log')));
 });
+
+test('a pinned ELF gh under a writable parent is refused before credential preparation', () => {
+  const { path, profile } = fixture();
+  const bytes = Buffer.from('7f454c4600000000', 'hex');
+  writeFileSync(path, bytes);
+  profile.executables.gh = { path, sha256: createHash('sha256').update(bytes).digest('hex') };
+  chmodSync(join(path, '..'), 0o775);
+  assert.throws(() => verifyHostExecutable(profile, 'gh'), /trusted native gh ancestors required/);
+  if (process.platform !== 'linux' || process.arch !== 'x64') return;
+  const root = mkdtempSync(join(tmpdir(), 'mods-gh-parent-launcher-'));
+  writeFileSync(join(root, 'private-source-qualification.sh'), readFileSync(new URL('./private-source-qualification.sh', import.meta.url)));
+  writeFileSync(join(root, 'private-source-host.json'), JSON.stringify(profile));
+  const operation = join(root, 'operation');
+  const result = spawnSync('/bin/bash', [join(root, 'private-source-qualification.sh'), join(root, 'absent-binding.json'), operation], { encoding: 'utf8', env: { ...process.env, XDG_STATE_HOME: root } });
+  assert.equal(result.status, 69);
+  assert.match(result.stderr, /reviewed native gh executable unavailable/);
+  assert.ok(!existsSync(join(operation, 'helper-command.log')));
+});

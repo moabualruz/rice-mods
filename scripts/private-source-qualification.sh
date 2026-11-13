@@ -37,7 +37,7 @@ native_executable() {
   if [ "$native_name" = gh ]; then
     [ "$(/usr/bin/od -An -tx1 -N4 -- "$native_path" | /usr/bin/tr -d ' \n')" = 7f454c46 ] || return 1
   fi
-  if [ "$native_name" = bao-run ] || [ "$native_name" = rice-helper ]; then
+  if [ "$native_name" = bao-run ] || [ "$native_name" = rice-helper ] || [ "$native_name" = gh ]; then
     native_parent=${native_path%/*}
     while [ -n "$native_parent" ]; do
       [ -d "$native_parent" ] || return 1

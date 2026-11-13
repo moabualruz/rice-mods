@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readFileSync, realpathSync, lstatSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
 
 const profile = JSON.parse(readFileSync(new URL('./private-source-host.json', import.meta.url), 'utf8'));
 
@@ -15,6 +15,13 @@ export function verifyHostExecutable(configuration, name) {
   const bytes = readFileSync(path);
   if (createHash('sha256').update(bytes).digest('hex') !== entry.sha256) throw new Error('native executable differs from reviewed host profile');
   if (name === 'gh' && bytes.subarray(0, 4).toString('hex') !== '7f454c46') throw new Error('native ELF gh executable required');
+  if (name === 'gh') {
+    for (let parent = dirname(path);; parent = dirname(parent)) {
+      const ancestor = lstatSync(parent);
+      if (!ancestor.isDirectory() || (ancestor.uid !== process.getuid() && ancestor.uid !== 0) || (ancestor.mode & 0o022)) throw new Error('trusted native gh ancestors required');
+      if (parent === dirname(parent)) break;
+    }
+  }
   return { path, sha256: entry.sha256 };
 }
 
