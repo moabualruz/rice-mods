@@ -178,20 +178,25 @@ async function execute(mode, name) {
   const child = spawn(process.execPath, [harness, mode, bindingFile, operation], { env: childEnv, stdio: ['ignore', 'pipe', 'pipe'] });
   let output = '';
   child.stdout.on('data', b => { output += b; }); child.stderr.on('data', b => { output += b; });
-  const timeout = setTimeout(() => child.kill('SIGKILL'), 20_000);
+  let fixtureTimedOut = false;
+  const timeout = setTimeout(() => { fixtureTimedOut = true; child.kill('SIGTERM'); }, 20_000);
+  const hardStop = setTimeout(() => { if (fixtureTimedOut) child.kill('SIGKILL'); }, 25_000);
   if (scenario.mode === 'recover' && mode === 'operate') {
     const poll = setInterval(() => { if (scenario.dispatched && scenario.calls.some(v => v.path.endsWith('/actions/runs/91001/jobs'))) {
       const active = JSON.parse(readFileSync(join(operation, 'operation.json'), 'utf8')).activeCommand;
-      assert.ok(active?.pid && active.birth);
-      const argv = execFileSync('/bin/ps', ['-p', String(active.pid), '-o', 'command='], { encoding: 'utf8' });
-      assert.ok(!argv.includes(fake));
-      scenario.nativeArgvExcludesToken = true;
-      clearInterval(poll); child.kill('SIGKILL');
+      if (!active?.pid || !active.birth || active.phase !== 'watch') return;
+      const birth = spawnSync('/bin/ps', ['-p', String(active.pid), '-o', 'lstart='], { encoding: 'utf8' });
+      if (birth.status !== 0 || birth.stdout.trim() !== active.birth) return;
+      const argv = spawnSync('/bin/ps', ['-p', String(active.pid), '-o', 'command='], { encoding: 'utf8' });
+      if (argv.status !== 0) return;
+      scenario.nativeArgvExcludesToken = !argv.stdout.includes(fake);
+      clearInterval(poll); child.kill(scenario.nativeArgvExcludesToken ? 'SIGKILL' : 'SIGTERM');
     } }, 20);
     child.on('close', () => clearInterval(poll));
   }
   const code = await new Promise(r => child.on('close', (code, signal) => r(signal || code)));
-  clearTimeout(timeout);
+  clearTimeout(timeout); clearTimeout(hardStop);
+  assert.equal(fixtureTimedOut, false, `${name}/${mode}: native fixture child exceeded its deadline`);
   assert.ok(!output.includes(fake)); assert.ok(!output.includes(env.GH_TOKEN));
   const statePath = join(operation, 'operation.json');
   return { code, output, operation, state: existsSync(statePath) ? JSON.parse(readFileSync(statePath, 'utf8')) : null };
@@ -200,7 +205,7 @@ try {
   for (const name of ['success204', 'watch-transport', 'failure', 'preexisting', 'foreign', 'recover', 'wrong-source', 'wrong-pin', 'short-lifetime', 'moved-head', 'changed-workflow', 'stale-source', 'unrelated-ci', 'arbitrary-gh', 'lease-busy', 'custody-lost', 'same-second-foreign', 'late-foreign', 'missing-receipt', 'ambiguous-receipt']) {
     scenario = { mode: name, secret: name === 'preexisting' ? { name: 'MODS_SOURCE_READ_TOKEN', created_at: '2020-01-01T00:00:00Z', updated_at: '2020-01-01T00:00:00Z' } : null, status: 'completed', conclusion: name === 'failure' ? 'failure' : 'success', sets: 0, deletes: 0, dispatches: 0, cancels: 0, calls: [], unknown: [] };
     let result = await execute('operate', name);
-    if (name === 'recover') { assert.equal(result.code, 'SIGKILL'); result = await execute('recover', name); assert.equal(scenario.cancels, 1); }
+    if (name === 'recover') { assert.equal(scenario.nativeArgvExcludesToken, true, 'recovery interruption requires the recorded live watch command and token-free argv'); assert.equal(result.code, 'SIGKILL'); result = await execute('recover', name); assert.equal(scenario.cancels, 1); }
     const expected = ['success204', 'watch-transport', 'recover'].includes(name) ? 0 : 1;
     writeFileSync(join(target, name + '-native.json'), JSON.stringify({ scenario, result: { code: result.code, state: result.state } }, null, 2));
     if (result.code !== expected) console.log(JSON.stringify({ name, code: result.code, state: result.state, unknown: scenario.unknown }));
