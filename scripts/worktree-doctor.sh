@@ -19,6 +19,14 @@ require_tool claude 'npm install --global @anthropic-ai/claude-code@2.1.309'
 require_tool git-canonical-gate 'rice-agent install'
 [ "$missing" -eq 0 ] || exit 1
 
+case "$(command -v node)" in
+  "$HOME/.local/share/mise/installs/node/24.18.0/bin/node"|/opt/mise/installs/node/24.18.0/bin/node) ;;
+  *)
+    echo 'worktree-doctor: Node must come from the mise 24.18.0 installation' >&2
+    echo 'Fix: mise exec node@24.18.0 -- just worktree-doctor' >&2
+    exit 1
+    ;;
+esac
 [ "$(node --version)" = v24.18.0 ] || {
   echo 'worktree-doctor: Node 24.18.0 from mise is required' >&2
   echo 'Fix: mise exec node@24.18.0 -- just worktree-doctor' >&2

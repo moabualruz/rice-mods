@@ -4,11 +4,13 @@ cd "$(git rev-parse --show-toplevel)"
 head=$(git rev-parse HEAD)
 branch=$(git symbolic-ref --quiet HEAD) || { echo 'pre-push: a checked-out branch is required' >&2; exit 1; }
 while read -r local_ref local_sha _remote_ref _remote_sha; do
-  [ "$local_sha" != 0000000000000000000000000000000000000000 ] || continue
+  [ "$local_sha" != 0000000000000000000000000000000000000000 ] || { echo 'pre-push: branch deletion is not a candidate push' >&2; exit 1; }
   [ "$local_sha" = "$head" ] && [ "$local_ref" = "$branch" ] || {
     echo 'pre-push: push only the checked-out candidate; use its own worktree' >&2
     exit 1
   }
 done
+producer=$(git config --get rice.canonicalGateRoot) || { echo 'pre-push: configure the owning canonical producer before pushing' >&2; exit 1; }
+[ -n "$producer" ] || { echo 'pre-push: canonical producer must not be empty' >&2; exit 1; }
 just worktree-doctor </dev/null
 exec git-canonical-gate </dev/null
