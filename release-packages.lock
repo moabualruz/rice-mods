@@ -1,8 +1,8 @@
 # rice-release template lock: exact published tag, commit and SHA-256 per file. Written by vendor-lock.sh; do not edit.
-tag templates-v0.3.7
-commit c485ae1e524e38242cb3d8a6cae0391f5ddf785a
+tag templates-v0.3.8
+commit 8086d2f48dcb150958a8b44897a14dd98fbeece3
 cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30  release-packages/LICENSE
-44199f08652a038cc380320b23a75ab342fe0372388d6c041983883b1ef19744  release-packages/README.md
+c5a036590273cf9f7fcc6dbebc95d96df89bc9ceb88895fcd46d84e62c67b583  release-packages/README.md
 18cd9e462ae0d2dbfd1c8de7bfd21e12c5f728aa67bf31b34e5c9c971d649b35  release-packages/npm-skeleton/README.md
 75083bd17b71325b851b0a99de77b57b587b48ce47414da34eb53b42ecedea7b  release-packages/npm-skeleton/index.js
 81366fb222730edae6d632e11137ba9aa8a1b34a543917f1eb705d8a3e6c5977  release-packages/npm-skeleton/package-lock.json
@@ -18,6 +18,6 @@ fbfe93fb9e0eb0e4cdb386d6e580e65918bce211e79c009602d01384e00a974c  release-packag
 2cca7025be510360debe27d75054c2cf13c2b726e0d9b186721ebb6da5322aed  release-packages/scripts/check-policy.sh
 46f93ee8dc84fdfb83b675cebce2536f85dab640da2e35568fc47a71ad4dcffb  release-packages/scripts/npm-package.sh
 13458eab9e9ba2fe8cc6b9736de31ce5e5ed93b77a8b9d6871c001397bdf1661  release-packages/scripts/oci-image.sh
-d07a553d0d025f1831d070be7fea75f0f76ddf3090ea6c90aef4aa4a5b0aeee1  release-packages/scripts/plugin.sh
+479657e814f5a90ec800b07f7ccad40de94adca12773d2609b9670c7bd48b07d  release-packages/scripts/plugin.sh
 3b0b1cb24e898cf8724ffed269c45258fd870f1af4296a6878a576ce6533b5fa  release-packages/scripts/vendor-lock.sh
-99334eaa9fe37e3749fb41fe1f4bc46f6f79f0629247ec4ab97dfa15cd71d2e8  release-packages/scripts/versions.env
+b2dc2df66ab45b9c83b761cc546b2cb6db8914d4ff65e4714d45679af68e6182  release-packages/scripts/versions.env
