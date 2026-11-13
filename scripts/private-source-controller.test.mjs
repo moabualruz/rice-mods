@@ -61,6 +61,7 @@ const server = createServer({ key, cert: readFileSync(certFile) }, async (req, r
   scenario.calls.push({ method: req.method, path });
   if (req.method !== 'GET') assert.match(readFileSync(custodyLog, 'utf8'), /held\n$/);
   const json = (status, value) => { res.writeHead(status, { 'content-type': 'application/json', 'x-github-request-id': 'FIXTURE' }); res.end(value === undefined ? undefined : JSON.stringify(value)); };
+  if (path === '/meta') return json(200, { installed_version: '3.20.0' });
   if (path === `/repos/${repo}`) return json(200, { id: 77, full_name: repo, name: 'rice-mods', owner: { login: 'moabualruz' }, private: true, default_branch: 'main', permissions: { admin: true } });
   if (path === `/repos/${repo}/git/ref/heads/main`) return json(200, { object: { sha: scenario.mode === 'moved-head' ? 'b'.repeat(40) : head } });
   if (path === `/repos/${repo}/git/commits/${head}`) return json(200, { sha: head, tree: { sha: 'c'.repeat(40) } });
@@ -111,8 +112,9 @@ const server = createServer({ key, cert: readFileSync(certFile) }, async (req, r
     return res.end(scenario.mode === 'missing-receipt' ? 'no ownership receipt\n' : scenario.mode === 'ambiguous-receipt' ? marker + marker : marker);
   }
   if (path.endsWith('/actions/runs/91001/cancel')) { scenario.cancels++; scenario.status = 'completed'; scenario.conclusion = 'cancelled'; return json(202); }
-  if (path === '/graphql') return json(200, { data: {} });
+  if (path === '/graphql' || path === '/api/graphql') return json(200, { data: {} });
   scenario.unknown.push({ method: req.method, path });
+  writeFileSync(join(target, 'unknown-native-routes.json'), JSON.stringify(scenario.unknown));
   return json(404, { message: 'fixture route missing' });
 });
 await new Promise((r, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', r); });
@@ -125,8 +127,9 @@ const proxy = createProxy(socket => {
 });
 await new Promise(r => proxy.listen(0, '127.0.0.1', r));
 const config = join(target, 'gh-config'); mkdirSync(config, { recursive: true });
-writeFileSync(join(config, 'hosts.yml'), 'github.com:\n    api_host: fixture.invalid\n    git_protocol: https\n    oauth_token: fixture-native-operator\n');
-const env = { ...process.env, HTTPS_PROXY: `http://127.0.0.1:${proxy.address().port}`, HTTP_PROXY: `http://127.0.0.1:${proxy.address().port}`, NO_PROXY: '', ALL_PROXY: '', GH_CONFIG_DIR: config, GH_HOST: 'github.com', GH_TOKEN: 'fixture-native-operator', SSL_CERT_FILE: certFile, GH_NO_UPDATE_NOTIFIER: '1', RICE_RELEASE_DOWNLOAD_TOKEN: fake, RICE_RELEASE_DOWNLOAD_TOKEN_EXPIRES_AT: new Date(Date.now() + 60 * 60_000).toISOString() };
+const cache = join(target, 'cache'); mkdirSync(cache, { mode: 0o700 });
+writeFileSync(join(config, 'hosts.yml'), 'fixture.invalid:\n    git_protocol: https\n    oauth_token: fixture-native-operator\n');
+const env = { ...process.env, HTTPS_PROXY: `http://127.0.0.1:${proxy.address().port}`, HTTP_PROXY: `http://127.0.0.1:${proxy.address().port}`, NO_PROXY: '', ALL_PROXY: '', GH_CONFIG_DIR: config, XDG_CACHE_HOME: cache, GH_HOST: 'fixture.invalid', GH_TOKEN: 'fixture-native-operator', SSL_CERT_FILE: certFile, GH_NO_UPDATE_NOTIFIER: '1', RICE_RELEASE_DOWNLOAD_TOKEN: fake, RICE_RELEASE_DOWNLOAD_TOKEN_EXPIRES_AT: new Date(Date.now() + 60 * 60_000).toISOString() };
 const proof = [];
 const preserved = join(target, 'existing-operation');
 mkdirSync(preserved);
@@ -163,7 +166,7 @@ if (process.platform === 'linux' && process.arch === 'x64') {
   const helperBytes = '#!/bin/sh\nexit 91\n';
   writeFileSync(helper, helperBytes, { mode: 0o755 });
   writeFileSync(join(helperFixture, 'private-source-qualification.sh'), readFileSync(join(root, 'private-source-qualification.sh')));
-  writeFileSync(join(helperFixture, 'private-source-host.json'), JSON.stringify({ version: 1, platform: 'linux', architecture: 'x64', executables: { 'rice-helper': { path: helper, sha256: createHash('sha256').update(helperBytes).digest('hex') } } }));
+  writeFileSync(join(helperFixture, 'private-source-host.json'), JSON.stringify({ version: 1, platform: 'linux', architecture: 'x64', executables: { gh: { path: gh, sha256: ghSHA256 }, 'rice-helper': { path: helper, sha256: createHash('sha256').update(helperBytes).digest('hex') } } }));
   chmodSync(helperFixture, 0o775);
   const writableParentOperation = join(target, 'writable-helper-refusal');
   const writableParent = spawnSync('/bin/bash', [join(helperFixture, 'private-source-qualification.sh'), refusedBinding, writableParentOperation], { encoding: 'utf8', env: { ...process.env, HOME: emptyHome, PATH: hostileBin + ':/usr/bin:/bin' } });
@@ -199,7 +202,7 @@ async function execute(mode, name) {
   }
   const code = await new Promise(r => child.on('close', (code, signal) => r(signal || code)));
   clearTimeout(timeout); clearTimeout(hardStop);
-  assert.equal(fixtureTimedOut, false, `${name}/${mode}: native fixture child exceeded its deadline`);
+  assert.equal(fixtureTimedOut, false, `${name}/${mode}: native fixture child exceeded its deadline; unknown routes ${JSON.stringify(scenario.unknown)}`);
   assert.ok(!output.includes(fake)); assert.ok(!output.includes(env.GH_TOKEN));
   const statePath = join(operation, 'operation.json');
   return { code, output, operation, state: existsSync(statePath) ? JSON.parse(readFileSync(statePath, 'utf8')) : null };

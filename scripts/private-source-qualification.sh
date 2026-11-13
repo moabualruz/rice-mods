@@ -34,23 +34,25 @@ native_executable() {
   (( (8#$native_mode & 8#022) == 0 )) || return 1
   native_actual=$(/usr/bin/sha256sum -- "$native_path") || return 1
   [ "${native_actual%% *}" = "$native_sha" ] || return 1
-  if [ "$native_name" = bao-run ] || [ "$native_name" = rice-helper ]; then
-    native_parent=${native_path%/*}
-    while [ -n "$native_parent" ]; do
-      [ -d "$native_parent" ] || return 1
-      native_uid=$(/usr/bin/stat -c '%u' -- "$native_parent") || return 1
-      native_mode=$(/usr/bin/stat -c '%a' -- "$native_parent") || return 1
-      [ "$native_uid" -eq 0 ] || [ "$native_uid" -eq "$(/usr/bin/id -u)" ] || return 1
-      case "$native_mode" in ''|*[!0-7]*) return 1 ;; esac
-      (( (8#$native_mode & 8#022) == 0 )) || return 1
-      [ "$native_parent" != / ] || break
-      native_parent=${native_parent%/*}
-      [ -n "$native_parent" ] || native_parent=/
-    done
+  if [ "$native_name" = gh ]; then
+    [ "$(/usr/bin/od -An -tx1 -N4 -- "$native_path" | /usr/bin/tr -d ' \n')" = 7f454c46 ] || return 1
   fi
+  native_parent=${native_path%/*}
+  while [ -n "$native_parent" ]; do
+    [ -d "$native_parent" ] || return 1
+    native_uid=$(/usr/bin/stat -c '%u' -- "$native_parent") || return 1
+    native_mode=$(/usr/bin/stat -c '%a' -- "$native_parent") || return 1
+    [ "$native_uid" -eq 0 ] || [ "$native_uid" -eq "$(/usr/bin/id -u)" ] || return 1
+    case "$native_mode" in ''|*[!0-7]*) return 1 ;; esac
+    (( (8#$native_mode & 8#022) == 0 )) || return 1
+    [ "$native_parent" != / ] || break
+    native_parent=${native_parent%/*}
+    [ -n "$native_parent" ] || native_parent=/
+  done
   printf '%s\n' "$native_path"
 }
 
+native_executable gh >/dev/null || { echo 'reviewed native gh executable unavailable' >&2; exit 69; }
 helper=$(native_executable rice-helper) || { echo 'reviewed Rice helper unavailable' >&2; exit 69; }
 helper_sha=$(/usr/bin/jq -er '.executables["rice-helper"].sha256' "$host_profile")
 operator=$(native_executable bao-run) || { echo 'reviewed operator executable unavailable' >&2; exit 69; }
