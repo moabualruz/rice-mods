@@ -8,7 +8,7 @@
 #   plugin.sh sbom DIR OUT.json           CycloneDX document naming the plugin as the main module (no third-party code)
 #
 # Layout checked: .claude-plugin/plugin.json (name, version MAJOR.MINOR.PATCH, description, license), hooks/hooks.json
-# whose "modules" exist, a nonempty LIMITS.md, at least one skills/NAME/SKILL.md, and a .mcp.json whose servers use ${CLAUDE_PLUGIN_ROOT}
+# whose "modules" exist, and optional LIMITS.md, skills/NAME/SKILL.md and .mcp.json metadata when present.
 # paths. The name must not start with a reserved prefix (claude-, anthropic-, cc-plugin-). Nothing is published to a
 # marketplace: the zip is attached to a private release only. The capability baseline is the reviewable diff of
 # `claude plugin validate --json` (hooked events, `$` calls, env reads and writes); a mod calling `$.http.fetch`, an
@@ -29,14 +29,16 @@ reserved_re='^(claude-|anthropic-|cc-plugin-)'
 semver_re='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
 
 layout_check() {
-  local manifest="$dir/.claude-plugin/plugin.json" limits="$dir/LIMITS.md" name version hooks mod grep_status=0
-  [ -f "$limits" ] && [ ! -L "$limits" ] && [ -s "$limits" ] || die "no LIMITS.md"
-  grep -Eq '^[[:space:]]*-[[:space:]]+[^:]+:[[:space:]]*\[[^]]+\][[:space:]]*$|^[[:space:]]*\[[^]]+\][[:space:]]*$' "$limits" || grep_status=$?
-  case "$grep_status" in
-    0) die "LIMITS.md contains unresolved placeholders" ;;
-    1) ;;
-    *) die "cannot read LIMITS.md" ;;
-  esac
+  local manifest="$dir/.claude-plugin/plugin.json" limits="$dir/LIMITS.md" skills="$dir/skills" mcp="$dir/.mcp.json" name version hooks mod grep_status=0 skill skills_found=0
+  if [ -e "$limits" ] || [ -L "$limits" ]; then
+    [ -f "$limits" ] && [ ! -L "$limits" ] && [ -s "$limits" ] || die "LIMITS.md is not a nonempty regular file"
+    grep -Eq '^[[:space:]]*-[[:space:]]+[^:]+:[[:space:]]*\[[^]]+\][[:space:]]*$|^[[:space:]]*\[[^]]+\][[:space:]]*$' "$limits" || grep_status=$?
+    case "$grep_status" in
+      0) die "LIMITS.md contains unresolved placeholders" ;;
+      1) ;;
+      *) die "cannot read LIMITS.md" ;;
+    esac
+  fi
   [ -f "$manifest" ] || die "no .claude-plugin/plugin.json"
   jq -e . "$manifest" >/dev/null 2>&1 || die "plugin.json is not valid JSON"
   name="$(jq -r '.name // empty' "$manifest")"
@@ -52,10 +54,19 @@ layout_check() {
   while IFS= read -r mod; do
     [ -f "$dir/hooks/$mod" ] || die "hooks/hooks.json names module $mod, which does not exist"
   done < <(jq -r '.modules[]? // empty' "$hooks")
-  [ -n "$(find "$dir/skills" -mindepth 2 -maxdepth 2 -name SKILL.md 2>/dev/null | head -n1)" ] || die "no skills/NAME/SKILL.md"
-  [ -f "$dir/.mcp.json" ] || die "no .mcp.json"
-  jq -e '.mcpServers | type == "object" and length > 0' "$dir/.mcp.json" >/dev/null 2>&1 || die ".mcp.json has no mcpServers entry"
-  if jq -r '.mcpServers[] | (.command // ""), (.args // [])[]' "$dir/.mcp.json" | grep -E '^(/|~|[A-Za-z]:\\)' >/dev/null; then die ".mcp.json uses an absolute path; use \${CLAUDE_PLUGIN_ROOT}"; fi
+  if [ -e "$skills" ] || [ -L "$skills" ]; then
+    [ -d "$skills" ] && [ ! -L "$skills" ] || die "skills is not a directory"
+    while IFS= read -r -d '' skill; do
+      [ -f "$skill" ] && [ ! -L "$skill" ] && [ -s "$skill" ] || die "skills contains a non-regular or empty NAME/SKILL.md"
+      skills_found=1
+    done < <(find "$skills" -mindepth 2 -maxdepth 2 -name SKILL.md -print0 2>/dev/null)
+    [ "$skills_found" -eq 1 ] || die "skills has no nonempty NAME/SKILL.md"
+  fi
+  if [ -e "$mcp" ] || [ -L "$mcp" ]; then
+    [ -f "$mcp" ] && [ ! -L "$mcp" ] || die ".mcp.json is not a regular file"
+    jq -e '.mcpServers | type == "object" and length > 0' "$mcp" >/dev/null 2>&1 || die ".mcp.json has no mcpServers entry"
+    if jq -r '.mcpServers[] | (.command // ""), (.args // [])[]' "$mcp" | grep -E '^(/|~|[A-Za-z]:\\)' >/dev/null; then die ".mcp.json uses an absolute path; use \${CLAUDE_PLUGIN_ROOT}"; fi
+  fi
   echo "plugin: layout ok ($name $version)"
 }
 

@@ -104,11 +104,12 @@ plugin.sh sbom DIR OUT.json          # CycloneDX naming the plugin as the main m
 plugin.sh zip DIR OUT.zip            # deterministic zip: PRODUCT_VERSION_any_all.zip is the asset name the verifier knows
 ```
 
-Layout: `.claude-plugin/plugin.json` (name, stable version, description, license), `hooks/hooks.json` with
-`"modules": ["./register.ts"]`, `skills/NAME/SKILL.md`, `.mcp.json` with `${CLAUDE_PLUGIN_ROOT}` paths. Names may not start
-with `claude-`, `anthropic-` or `cc-plugin-`. No marketplace publication: the zip, its SBOM, `checksums.txt` and the minisign
-signature are assets of a private release (`rice-release verify artifacts` accepts the directory). The `claude` CLI version is
-recorded in the baseline; mod behavior qualification stays with the mods track (research 61).
+Required layout: `.claude-plugin/plugin.json` (name, stable version, description, license) and `hooks/hooks.json` with
+`"modules": ["./register.ts"]`. Optional `LIMITS.md`, `skills/NAME/SKILL.md`, and `.mcp.json` metadata are validated when present;
+MCP server paths must use `${CLAUDE_PLUGIN_ROOT}`. Names may not start with `claude-`, `anthropic-` or `cc-plugin-`. No marketplace
+publication: the zip, its SBOM, `checksums.txt` and the minisign signature are assets of a private release (`rice-release verify
+artifacts` accepts the directory). The `claude` CLI version is recorded in the baseline; mod behavior qualification stays with the
+mods track (research 61).
 
 ## Evidence and inventory
 
@@ -157,4 +158,4 @@ only); `check --published` repeats the origin tag proof. Never edit the copy.
 | Syft | 1.54.1 | Apache-2.0 |
 | Trivy (container, client/server) | 0.55.0 | Apache-2.0 |
 | Docker Buildx | the host's | Apache-2.0 |
-| Claude Code (validate) | 2.1.296 | proprietary CLI, free to run |
+| Claude Code (validate) | 2.1.316 | proprietary CLI, free to run |

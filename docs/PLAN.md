@@ -56,7 +56,7 @@ moabualruz/rice-multi-models); this repository is the marketplace listing them.
 - [x] rice-multi-models: Codex provider (auth via codex app-server, Responses translation, WS with SSE fallback)
 - [x] Live: Codex main with tools, Claude main with Codex subagent, agent file on Codex, Codex main with Claude subagent, compaction
 - [x] Tests: 6 mod (claude plugin test), 6 helper (bun test, captured streams); helper type-checks
-- [x] One repository per mod plus this marketplace (GitHub, public); `/model` rows for the visible Codex models
+- [x] One repository per mod plus this marketplace (GitHub, private); `/model` rows for the visible Codex models
 - [x] Session helper (private socket, token) as the default: one WebSocket per conversation; one-shot fallback
 - [x] Declared providers (claude-styx format): OpenAI-style, Anthropic-style, Bedrock; live: LM Studio, OpenRouter; OpenCode Go reaches the service (needs an active Go subscription)
 - [x] OpenCode Zen and Go (rice-multi-models 0.5.0, 2026-10-12): per-model kinds, Responses and Gemini codecs, /rice-models opencode; live: Responses kind on LM Studio and OpenRouter, Anthropic kind under a /v1 base on LM Studio; all four protocols reach OpenCode authenticated (Zen 402 no credit, Go 403 no subscription); Gemini replies unit-tested only (owner: Zen credit or a Go subscription to finish)

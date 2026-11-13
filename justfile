@@ -11,6 +11,7 @@ ci:
     claude plugin validate --strict .claude-plugin/marketplace.json
     node --test scripts/*.test.mjs
     node scripts/validate-marketplace.mjs
+    bash scripts/plugin-source-check.sh
 
 marketplace-lock-generate:
     node scripts/marketplace-lock.mjs generate
