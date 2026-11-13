@@ -37,20 +37,18 @@ native_executable() {
   if [ "$native_name" = gh ]; then
     [ "$(/usr/bin/od -An -tx1 -N4 -- "$native_path" | /usr/bin/tr -d ' \n')" = 7f454c46 ] || return 1
   fi
-  if [ "$native_name" = bao-run ] || [ "$native_name" = rice-helper ] || [ "$native_name" = gh ]; then
-    native_parent=${native_path%/*}
-    while [ -n "$native_parent" ]; do
-      [ -d "$native_parent" ] || return 1
-      native_uid=$(/usr/bin/stat -c '%u' -- "$native_parent") || return 1
-      native_mode=$(/usr/bin/stat -c '%a' -- "$native_parent") || return 1
-      [ "$native_uid" -eq 0 ] || [ "$native_uid" -eq "$(/usr/bin/id -u)" ] || return 1
-      case "$native_mode" in ''|*[!0-7]*) return 1 ;; esac
-      (( (8#$native_mode & 8#022) == 0 )) || return 1
-      [ "$native_parent" != / ] || break
-      native_parent=${native_parent%/*}
-      [ -n "$native_parent" ] || native_parent=/
-    done
-  fi
+  native_parent=${native_path%/*}
+  while [ -n "$native_parent" ]; do
+    [ -d "$native_parent" ] || return 1
+    native_uid=$(/usr/bin/stat -c '%u' -- "$native_parent") || return 1
+    native_mode=$(/usr/bin/stat -c '%a' -- "$native_parent") || return 1
+    [ "$native_uid" -eq 0 ] || [ "$native_uid" -eq "$(/usr/bin/id -u)" ] || return 1
+    case "$native_mode" in ''|*[!0-7]*) return 1 ;; esac
+    (( (8#$native_mode & 8#022) == 0 )) || return 1
+    [ "$native_parent" != / ] || break
+    native_parent=${native_parent%/*}
+    [ -n "$native_parent" ] || native_parent=/
+  done
   printf '%s\n' "$native_path"
 }
 

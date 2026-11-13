@@ -125,8 +125,8 @@ const proxy = createProxy(socket => {
 });
 await new Promise(r => proxy.listen(0, '127.0.0.1', r));
 const config = join(target, 'gh-config'); mkdirSync(config, { recursive: true });
-writeFileSync(join(config, 'hosts.yml'), 'github.com:\n    api_host: fixture.invalid\n    git_protocol: https\n    oauth_token: fixture-native-operator\n');
-const env = { ...process.env, HTTPS_PROXY: `http://127.0.0.1:${proxy.address().port}`, HTTP_PROXY: `http://127.0.0.1:${proxy.address().port}`, NO_PROXY: '', ALL_PROXY: '', GH_CONFIG_DIR: config, GH_HOST: 'github.com', GH_TOKEN: 'fixture-native-operator', SSL_CERT_FILE: certFile, GH_NO_UPDATE_NOTIFIER: '1', RICE_RELEASE_DOWNLOAD_TOKEN: fake, RICE_RELEASE_DOWNLOAD_TOKEN_EXPIRES_AT: new Date(Date.now() + 60 * 60_000).toISOString() };
+writeFileSync(join(config, 'hosts.yml'), 'fixture.invalid:\n    git_protocol: https\n    oauth_token: fixture-native-operator\n');
+const env = { ...process.env, HTTPS_PROXY: `http://127.0.0.1:${proxy.address().port}`, HTTP_PROXY: `http://127.0.0.1:${proxy.address().port}`, NO_PROXY: '', ALL_PROXY: '', GH_CONFIG_DIR: config, GH_HOST: 'fixture.invalid', GH_TOKEN: 'fixture-native-operator', SSL_CERT_FILE: certFile, GH_NO_UPDATE_NOTIFIER: '1', RICE_RELEASE_DOWNLOAD_TOKEN: fake, RICE_RELEASE_DOWNLOAD_TOKEN_EXPIRES_AT: new Date(Date.now() + 60 * 60_000).toISOString() };
 const proof = [];
 const preserved = join(target, 'existing-operation');
 mkdirSync(preserved);

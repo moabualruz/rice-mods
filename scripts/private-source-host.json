@@ -22,7 +22,7 @@
       "sha256": "8b293657239188bf0d353a682541d46300e5fd748dd569e97ddc08c5d1c65df2"
     },
     "node": {
-      "homeRelative": ".local/share/mise/installs/node/24.18.0/bin/node",
+      "path": "/opt/mise/installs/node/24.18.0/bin/node",
       "sha256": "41a74efb34cbde5c7632cdac0cf8bd1a14d0b8d73dc1e82755014d9a9ce70f5c"
     }
   }

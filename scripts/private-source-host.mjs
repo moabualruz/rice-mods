@@ -15,12 +15,10 @@ export function verifyHostExecutable(configuration, name) {
   const bytes = readFileSync(path);
   if (createHash('sha256').update(bytes).digest('hex') !== entry.sha256) throw new Error('native executable differs from reviewed host profile');
   if (name === 'gh' && bytes.subarray(0, 4).toString('hex') !== '7f454c46') throw new Error('native ELF gh executable required');
-  if (name === 'gh') {
-    for (let parent = dirname(path);; parent = dirname(parent)) {
-      const ancestor = lstatSync(parent);
-      if (!ancestor.isDirectory() || (ancestor.uid !== process.getuid() && ancestor.uid !== 0) || (ancestor.mode & 0o022)) throw new Error('trusted native gh ancestors required');
-      if (parent === dirname(parent)) break;
-    }
+  for (let parent = dirname(path);; parent = dirname(parent)) {
+    const ancestor = lstatSync(parent);
+    if (!ancestor.isDirectory() || (ancestor.uid !== process.getuid() && ancestor.uid !== 0) || (ancestor.mode & 0o022)) throw new Error('trusted native executable ancestors required');
+    if (parent === dirname(parent)) break;
   }
   return { path, sha256: entry.sha256 };
 }
