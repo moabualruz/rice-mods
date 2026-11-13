@@ -10,7 +10,7 @@ while read -r local_ref local_sha _remote_ref _remote_sha; do
     exit 1
   }
 done
-producer=$(git config --get rice.canonicalGateRoot) || { echo 'pre-push: configure the owning canonical producer before pushing' >&2; exit 1; }
+producer=$(git config --local --get rice.canonicalGateRoot) || { echo 'pre-push: configure the owning canonical producer before pushing' >&2; exit 1; }
 [ -n "$producer" ] || { echo 'pre-push: canonical producer must not be empty' >&2; exit 1; }
 just worktree-doctor </dev/null
 exec git-canonical-gate </dev/null

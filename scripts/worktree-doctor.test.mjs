@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync, execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, symlinkSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, symlinkSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 
@@ -41,6 +41,12 @@ const input = `refs/heads/main ${head} refs/heads/main ${'0'.repeat(40)}\n`;
 const missingProducer = run('/bin/bash', [hook], { input });
 assert.notEqual(missingProducer.status, 0);
 assert.match(missingProducer.stderr, /configure the owning canonical producer/);
+const globalConfig = join(root, 'global-config');
+writeFileSync(globalConfig, '[rice]\ncanonicalGateRoot = /fixture/global-producer\n');
+const globalOnly = run('/bin/bash', [hook], { input, env: { ...env, GIT_CONFIG_GLOBAL: globalConfig } });
+assert.notEqual(globalOnly.status, 0);
+assert.match(globalOnly.stderr, /configure the owning canonical producer/);
+assert.ok(!existsSync(order));
 gitRun(['config', '--local', 'rice.canonicalGateRoot', join(root, 'fixture-producer')]);
 assert.equal(run('/bin/bash', [hook], { input }).status, 0);
 assert.equal(readFileSync(order, 'utf8'), 'readiness\ncanonical\n');
