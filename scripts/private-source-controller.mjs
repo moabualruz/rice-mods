@@ -1,11 +1,27 @@
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn, spawnSync, execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
-import { readFileSync, writeFileSync, renameSync, mkdirSync, existsSync, lstatSync } from 'node:fs';
+import { readFileSync, writeFileSync, renameSync, mkdirSync, existsSync, lstatSync, realpathSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { homedir } from 'node:os';
+import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
 
 import { validateMarketplaceLock } from './marketplace-lock.mjs';
 
+const require = createRequire(import.meta.url);
+async function installedDeliveryLease({ repository, run }) {
+  const toolkit = realpathSync(join(homedir(), '.local/share/rice-observe/workspace-toolkit/current/workspace'));
+  const { withRiceDeliveryLease } = require(join(toolkit, 'scripts/lib/rice-delivery-lease.js'));
+  return withRiceDeliveryLease({ repository, root: toolkit, run });
+}
+
+export async function runPrivateSourceController({ mode, bindingFile, directory, withDeliveryLease = installedDeliveryLease }) {
 const repo = 'moabualruz/rice-mods';
+const productRoot = fileURLToPath(new URL('../', import.meta.url));
+const ghBinary = realpathSync(execFileSync('which', ['gh'], { encoding: 'utf8' }).trim());
+const ghInfo = lstatSync(ghBinary);
+if (!ghInfo.isFile() || (ghInfo.uid !== process.getuid() && ghInfo.uid !== 0) || (ghInfo.mode & 0o022)) throw new Error('trusted native gh installation required');
+const ghSHA256 = createHash('sha256').update(readFileSync(ghBinary)).digest('hex');
 const workflow = '.github/workflows/private-source-qualification.yml';
 const workflowName = 'private-source-qualification.yml';
 const workflowSHA256 = createHash('sha256').update(readFileSync(new URL('../' + workflow, import.meta.url))).digest('hex');
@@ -16,23 +32,25 @@ const entries = validateMarketplaceLock(
   JSON.parse(readFileSync(new URL('../.claude-plugin/marketplace.lock.json', import.meta.url), 'utf8')),
 );
 const privateRepositories = JSON.parse(readFileSync(new URL('./private-repositories.json', import.meta.url), 'utf8'));
-const [, , mode, bindingFile, directory] = process.argv;
+if (!Array.isArray(privateRepositories) || !privateRepositories.every(value => typeof value === 'string')) throw new Error('invalid private repository allowlist');
 if (!['operate', 'recover'].includes(mode) || !bindingFile || !directory) {
   console.error('usage: node private-source-controller.mjs operate|recover BINDING_JSON OPERATION_DIRECTORY');
-  process.exit(64);
+  return 64;
 }
 const binding = JSON.parse(readFileSync(bindingFile, 'utf8'));
 const source = binding.sourceRepository;
 const head = binding.head;
 const entry = entries.find(value => value.repo === source);
+const bindingFields = new Set(['repository', 'sourceRepository', 'sourceCommit', 'sourceLimitsBlob', 'head', 'workflowSHA256', 'requiredCIRunID', 'requiredCIAttempt', 'helperDeliveryRef', 'helperSHA256']);
 if (binding.repository !== repo || !entry || !privateRepositories.includes(source) ||
     binding.sourceCommit !== entry.commit || binding.sourceLimitsBlob !== entry.limits ||
     !/^[0-9a-f]{40}$/.test(head || '') || binding.workflowSHA256 !== workflowSHA256 ||
     !Number.isSafeInteger(binding.requiredCIRunID) || binding.requiredCIRunID <= 0 ||
-    !['workflowWriterLeaseRef', 'secretWriterLeaseRef', 'sourceWriterLeaseRef', 'helperDeliveryRef'].every(k => typeof binding[k] === 'string' && binding[k].length > 0)) {
+    !Number.isSafeInteger(binding.requiredCIAttempt) || binding.requiredCIAttempt < 1 ||
+    Object.keys(binding).some(field => !bindingFields.has(field)) || typeof binding.helperDeliveryRef !== 'string' || !binding.helperDeliveryRef) {
   throw new Error('binding: exact delivery and native lease references required');
 }
-// These references bind evidence; the owning native lease, not this file, grants authority.
+// The installed repository-wide native keeper owns provider custody; binding strings grant none.
 const dir = resolve(directory);
 mkdirSync(dir, { recursive: true, mode: 0o700 });
 const directoryInfo = lstatSync(dir);
@@ -55,6 +73,7 @@ function save(patch) {
   renameSync(temporary, stateFile);
   return next;
 }
+if (mode === 'operate' && load()) throw new Error('operation already exists; use recovery, never redispatch');
 const token = process.env.RICE_RELEASE_DOWNLOAD_TOKEN || '';
 const expires = Date.parse(process.env.RICE_RELEASE_DOWNLOAD_TOKEN_EXPIRES_AT || '');
 delete process.env.RICE_RELEASE_DOWNLOAD_TOKEN;
@@ -79,11 +98,14 @@ for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => {
   }
 });
 
+let assertProviderCustody = () => { throw new Error('native repository custody unavailable'); };
 async function gh(phase, args, { stdin, limit = 30_000, allowFailure = false } = {}) {
+  assertProviderCustody();
+  if (createHash('sha256').update(readFileSync(ghBinary)).digest('hex') !== ghSHA256) throw new Error('native gh installation changed');
   let output = Buffer.alloc(0);
   let bytes = 0;
   const hash = createHash('sha256');
-  const child = spawn(binding.gh || 'gh', args, { detached: true, stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, GH_PROMPT_DISABLED: '1', GH_PAGER: 'cat', NO_COLOR: '1' } });
+  const child = spawn(ghBinary, args, { detached: true, stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, GH_PROMPT_DISABLED: '1', GH_PAGER: 'cat', NO_COLOR: '1' } });
   const command = { pid: child.pid, birth: child.pid ? birth(child.pid) : '', phase, startedAt: new Date().toISOString() };
   if (!command.pid || !command.birth) { child.kill(); throw new Error(`phase=${phase} command identity unavailable`); }
   activeChild = command;
@@ -111,17 +133,46 @@ async function secretMetadata() {
   const value = await api('secret-metadata', `repos/${repo}/actions/secrets?per_page=100`);
   if (value.total_count > 100 || !Array.isArray(value.secrets)) throw new Error('secret inventory must fit one native page');
   const item = value.secrets.find(v => v.name === secret);
+  if (item && ![item.created_at, item.updated_at].every(value => typeof value === 'string' && Number.isFinite(Date.parse(value)))) throw new Error('secret metadata timestamps unavailable');
   return item ? { name: item.name, created_at: item.created_at, updated_at: item.updated_at } : null;
 }
 const sameSecret = (a, b) => a && b && a.name === b.name && a.created_at === b.created_at && a.updated_at === b.updated_at;
+async function verifyDeliveredSource() {
+  const commit = await api('delivered-commit', `repos/${repo}/git/commits/${head}`);
+  if (commit.sha !== head || !/^[0-9a-f]{40}$/.test(commit.tree?.sha || '')) throw new Error('delivered commit identity mismatch');
+  const tree = await api('delivered-tree', `repos/${repo}/git/trees/${commit.tree.sha}?recursive=1`);
+  if (tree.truncated !== false || !Array.isArray(tree.tree)) throw new Error('complete delivered source tree required');
+  const paths = ['.claude-plugin/marketplace.json', '.claude-plugin/marketplace.lock.json', 'README.md', 'scripts/private-repositories.json', 'scripts/plugin-source-check.sh', 'scripts/marketplace-lock.mjs', 'release-packages/scripts/plugin.sh', 'release-packages/scripts/vendor-lock.sh', 'release-packages.lock', 'vendir.yml', 'vendir.lock.yml', 'scripts/private-source-controller.mjs', 'scripts/private-source-qualification.sh', '.github/workflows/ci.yml', workflow];
+  for (const path of paths) {
+    const info = lstatSync(join(productRoot, path));
+    if (!info.isFile() || info.isSymbolicLink()) throw new Error('regular delivered source file required');
+    const bytes = readFileSync(join(productRoot, path));
+    const blob = createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex');
+    const matching = tree.tree.filter(value => value.path === path);
+    if (matching.length !== 1 || matching[0].type !== 'blob' || matching[0].sha !== blob || matching[0].mode !== (info.mode & 0o111 ? '100755' : '100644')) throw new Error('local source differs from exact delivered head');
+  }
+}
+async function verifyTokenReceipt(run) {
+  const jobs = await api('receipt-jobs', `repos/${repo}/actions/runs/${run.id}/jobs?per_page=100`);
+  if (!Array.isArray(jobs.jobs) || jobs.total_count !== jobs.jobs.length) throw new Error('complete receipt job inventory required');
+  const matches = jobs.jobs.filter(value => value.name === 'qualify' && value.run_id === run.id && value.run_attempt === run.attempt);
+  if (matches.length !== 1 || !Number.isSafeInteger(matches[0].id)) throw new Error('exact qualification job required');
+  const job = matches[0];
+  const logs = await gh('token-receipt', ['api', `repos/${repo}/actions/jobs/${job.id}/logs`]);
+  const markers = [...logs.text.matchAll(/mods-source-token-receipt:({[^\r\n]*})/g)];
+  if (markers.length !== 1) throw new Error('token ownership receipt missing or ambiguous');
+  const receipt = JSON.parse(markers[0][1]);
+  if (receipt.version !== 1 || receipt.repository !== repo || receipt.head !== head || receipt.workflow !== workflow || receipt.sourceRepository !== source || receipt.sourceCommit !== entry.commit || receipt.runID !== run.id || receipt.runAttempt !== run.attempt || receipt.job !== 'qualify' || receipt.tokenSHA256 !== load().tokenSHA256) throw new Error('token ownership receipt mismatch');
+  save({ tokenReceipt: { version: 1, repository: repo, head, workflow, sourceRepository: source, sourceCommit: entry.commit, runID: run.id, runAttempt: run.attempt, job: 'qualify', tokenSHA256: receipt.tokenSHA256, jobID: job.id } });
+}
 async function runs() {
   const result = await api('dispatch-inventory', `repos/${repo}/actions/workflows/private-source-qualification.yml/runs?event=workflow_dispatch&branch=main&head_sha=${head}&per_page=100`);
   if (result.total_count > 100 || !Array.isArray(result.workflow_runs)) throw new Error('dispatch inventory exceeds bounded page');
   return result.workflow_runs;
 }
 function validateRun(run) {
-  if (!Number.isSafeInteger(run.id) || run.repository?.full_name !== repo || run.head_sha !== head || run.head_branch !== 'main' || run.event !== 'workflow_dispatch' || run.path !== workflow || run.display_title !== `Private source qualification: ${source}`) throw new Error('run identity mismatch');
-  return { id: run.id, status: run.status, conclusion: run.conclusion, head: run.head_sha, repository: run.repository.full_name, workflow: run.path, event: run.event, createdAt: run.created_at, updatedAt: run.updated_at, url: run.html_url };
+  if (!Number.isSafeInteger(run.id) || run.repository?.full_name !== repo || run.head_sha !== head || run.head_branch !== 'main' || run.event !== 'workflow_dispatch' || run.path !== workflow || run.run_attempt !== 1 || run.display_title !== `Private source qualification: ${source}`) throw new Error('run identity mismatch');
+  return { id: run.id, attempt: run.run_attempt, status: run.status, conclusion: run.conclusion, head: run.head_sha, repository: run.repository.full_name, workflow: run.path, event: run.event, createdAt: run.created_at, updatedAt: run.updated_at, url: run.html_url };
 }
 async function discoverRun() {
   const state = load();
@@ -157,9 +208,13 @@ async function cleanup() {
   try { if (state.setAttemptedAt && !state.secretDeletedAt) {
     const current = await secretMetadata();
     if (current) {
-      // Exclusive native writer lease plus absent baseline binds an interrupted set intent.
-      const owned = state.secretOwned || (Date.parse(current.created_at) >= Math.floor(Date.parse(state.setAttemptedAt) / 1000) * 1000 && Date.parse(current.updated_at) <= Date.parse(state.tokenExpiresAt) ? current : null);
-      if (!sameSecret(owned, current)) throw new Error('secret metadata changed; foreign replacement preserved');
+      const owned = state.secretOwned;
+      if (!owned || !sameSecret(owned, current)) throw new Error('secret ownership unknown or metadata changed; preserve it');
+      const run = await finalRun();
+      if (!run) throw new Error('owned run receipt unavailable; preserve secret');
+      await verifyTokenReceipt(run);
+      assertProviderCustody();
+      if (!sameSecret(owned, await secretMetadata())) throw new Error('secret changed after receipt; preserve it');
       await gh('delete-owned-secret', ['secret', 'delete', secret, '--repo', repo]);
       if (await secretMetadata()) throw new Error('secret deletion readback failed');
     }
@@ -169,21 +224,26 @@ async function cleanup() {
   save({ cleanupCompletedAt: new Date().toISOString() });
 }
 
+try { return await withDeliveryLease({ repository: repo, run: async ({ assertHeld }) => {
+assertProviderCustody = assertHeld;
+assertProviderCustody();
 let primaryError;
 try {
   if (mode === 'recover') { if (!load()) throw new Error('no owned operation to recover'); }
   else {
     if (load()) throw new Error('operation already exists; use recovery, never redispatch');
     if (!token || !Number.isFinite(expires) || expires - Date.now() < 16 * 60_000) throw new Error('actual token lifetime must cover 15m controller plus 1m margin');
-    save({ version: 1, bindingSHA256, repository: repo, sourceRepository: source, head, workflow, secret, startedAt: new Date().toISOString(), tokenExpiresAt: new Date(expires).toISOString(), sourceCommit: entry.commit, sourceLimitsBlob: entry.limits, leases: { workflowWriter: binding.workflowWriterLeaseRef, secretWriter: binding.secretWriterLeaseRef, sourceWriter: binding.sourceWriterLeaseRef }, helperDeliveryRef: binding.helperDeliveryRef });
+    save({ version: 1, bindingSHA256, repository: repo, sourceRepository: source, head, workflow, secret, startedAt: new Date().toISOString(), tokenExpiresAt: new Date(expires).toISOString(), sourceCommit: entry.commit, sourceLimitsBlob: entry.limits, tokenSHA256: digest(token), custody: { repository: repo, kind: 'native-repository-delivery-lease' }, helperDeliveryRef: binding.helperDeliveryRef });
     const repository = await api('repository', `repos/${repo}`);
     if (repository.full_name !== repo || repository.private !== true || repository.default_branch !== 'main' || repository.permissions?.admin !== true) throw new Error('destination repository identity mismatch');
     const branch = await api('main-head', `repos/${repo}/git/ref/heads/main`);
     if (branch.object?.sha !== head) throw new Error('delivered head moved');
+    await verifyDeliveredSource();
     const content = await api('workflow-content', `repos/${repo}/contents/${workflow}?ref=${head}`);
     if (content.encoding !== 'base64' || digest(Buffer.from(content.content, 'base64')) !== workflowSHA256) throw new Error('workflow digest mismatch');
     const ci = await api('required-ci', `repos/${repo}/actions/runs/${binding.requiredCIRunID}`);
-    if (ci.head_sha !== head || ci.repository?.full_name !== repo || ci.status !== 'completed' || ci.conclusion !== 'success') throw new Error('exact required CI is not successful');
+    const ordinaryWorkflow = await api('ordinary-ci-workflow', `repos/${repo}/actions/workflows/ci.yml`);
+    if (ci.head_sha !== head || ci.repository?.full_name !== repo || ci.status !== 'completed' || ci.conclusion !== 'success' || ci.name !== 'CI' || ci.path !== '.github/workflows/ci.yml' || ci.event !== 'push' || ci.head_branch !== 'main' || ci.run_attempt !== binding.requiredCIAttempt || !Number.isSafeInteger(ordinaryWorkflow.id) || ci.workflow_id !== ordinaryWorkflow.id) throw new Error('exact required CI is not successful');
     if (await secretMetadata()) throw new Error('existing download secret preserved; baseline must be absent');
     const beforeRunIDs = (await runs()).map(v => v.id);
     save({ beforeRunIDs });
@@ -193,6 +253,8 @@ try {
     const secretOwned = await secretMetadata();
     if (!secretOwned) throw new Error('secret set readback missing');
     save({ secretOwned });
+    await sleep(1100);
+    assertProviderCustody();
     if (cancelled) throw new Error('cancelled before dispatch');
     save({ dispatchAttemptedAt: new Date().toISOString() });
     // Exactly one native dispatch. An ambiguous transport failure is reconciled, never retried.
@@ -224,4 +286,15 @@ try {
 }
 if (load()) save({ controllerEndedAt: new Date().toISOString(), controllerExit: primaryError ? 1 : 0 });
 console.log(JSON.stringify({ repository: repo, mode, exit: primaryError ? 1 : 0, operation: stateFile }));
-process.exitCode = primaryError ? 1 : 0;
+return primaryError ? 1 : 0;
+} }); } catch (error) {
+  if (load()) save({ custodyFailure: { code: error.code || 'CUSTODY_FAILURE', fingerprint: digest(String(error.message)) }, controllerExit: 1 });
+  throw error;
+}
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const [, , mode, bindingFile, directory] = process.argv;
+  try { process.exitCode = await runPrivateSourceController({ mode, bindingFile, directory }); }
+  catch (error) { console.error(JSON.stringify({ phase: 'controller-setup', class: error.name, fingerprint: createHash('sha256').update(String(error.message)).digest('hex') })); process.exitCode = 1; }
+}

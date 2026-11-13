@@ -7,18 +7,21 @@ umask 077
 [ "$#" -eq 2 ] || { echo 'usage: private-source-qualification.sh BINDING_JSON OPERATION_DIRECTORY' >&2; exit 64; }
 binding=$1
 operation=$2
+case "$binding" in /*) ;; *) echo 'binding path must be absolute' >&2; exit 64 ;; esac
+case "$operation" in /*) ;; *) echo 'operation path must be absolute' >&2; exit 64 ;; esac
 here=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
-mkdir -p -- "$operation"
+mkdir -m 0700 -- "$operation" || { echo 'operation directory must be fresh' >&2; exit 65; }
 lock_root="${XDG_STATE_HOME:-$HOME/.local/state}/agent-execution/rice-mods"
 mkdir -p -- "$lock_root"
-exec 9> "$lock_root/private-source-secret.lock"
+[ ! -L "$lock_root/private-source-secret.lock" ] || { echo 'secret lock must not be a symlink' >&2; exit 65; }
+exec 9>> "$lock_root/private-source-secret.lock"
 flock -n 9 || { echo 'JIT controller already owns this operation' >&2; exit 73; }
 
-helper=$(jq -er '.helperBinary' "$binding")
+helper=/workspace/backbone/rice-observe/rice-observe
 helper_sha=$(jq -er '.helperSHA256 | select(test("^[0-9a-f]{64}$"))' "$binding")
-operator=$(jq -er '.operatorScript' "$binding")
-host_root=$(jq -er '.hostRoot' "$binding")
-app_id=$(jq -er '.appID | select(. == 4018471)' "$binding")
+operator=$(command -v bao-run)
+host_root=$(CDPATH='' cd -- "$here/.." && pwd)
+app_id=4018471
 source_repository=$(jq -er '.sourceRepository | select(test("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"))' "$binding")
 jq -e --arg repository "$source_repository" 'index($repository) != null' "$here/private-repositories.json" >/dev/null || { echo 'source repository is not declared private' >&2; exit 65; }
 node=$(mise which --tool node@24.18.0 node)

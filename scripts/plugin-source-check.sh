@@ -5,6 +5,7 @@
 # there, and only there (GITHUB_ACTIONS=true without LIVE_RELEASE_CHECK=required), an unreadable declared private
 # source is skipped explicitly and reported. A source that downloads is always checked, and every other failure fails.
 set -euo pipefail
+set +x
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 selected_repository=""
@@ -76,6 +77,16 @@ while IFS=$'\t' read -r name repo sha; do
   [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || { echo "plugin source check: $name has no exact sha pin" >&2; exit 1; }
   dest="$work/$name"
   mkdir -p "$dest"
+  if [ "${GITHUB_ACTIONS:-}" = true ] && [ "${LIVE_RELEASE_CHECK:-}" = required ] && [ -n "$selected_repository" ]; then
+    printf '%s' "$plugin_source_read_token" | env -u NODE_OPTIONS node --input-type=module -e '
+      import { createHash } from "node:crypto";
+      import { readFileSync } from "node:fs";
+      const env = process.env;
+      if (env.GITHUB_REPOSITORY !== "moabualruz/rice-mods" || !/^[0-9a-f]{40}$/.test(env.GITHUB_SHA || "") || !/^[1-9][0-9]*$/.test(env.GITHUB_RUN_ID || "") || !/^[1-9][0-9]*$/.test(env.GITHUB_RUN_ATTEMPT || "") || env.GITHUB_JOB !== "qualify") process.exit(1);
+      const tokenSHA256 = createHash("sha256").update(readFileSync(0)).digest("hex");
+      console.log("mods-source-token-receipt:" + JSON.stringify({ version: 1, repository: env.GITHUB_REPOSITORY, head: env.GITHUB_SHA, workflow: ".github/workflows/private-source-qualification.yml", sourceRepository: process.argv[1], sourceCommit: process.argv[2], runID: Number(env.GITHUB_RUN_ID), runAttempt: Number(env.GITHUB_RUN_ATTEMPT), job: env.GITHUB_JOB, tokenSHA256 }));
+    ' "$repo" "$sha"
+  fi
   if failure="$(GH_TOKEN="$plugin_source_read_token" gh api "repos/$repo/tarball/$sha" 2>&1 > "$work/$name.tgz")"; then
     :
   else
