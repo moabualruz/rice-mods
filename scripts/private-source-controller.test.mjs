@@ -113,6 +113,7 @@ const server = createServer({ key, cert: readFileSync(certFile) }, async (req, r
   if (path.endsWith('/actions/runs/91001/cancel')) { scenario.cancels++; scenario.status = 'completed'; scenario.conclusion = 'cancelled'; return json(202); }
   if (path === '/graphql') return json(200, { data: {} });
   scenario.unknown.push({ method: req.method, path });
+  writeFileSync(join(target, 'unknown-native-routes.json'), JSON.stringify(scenario.unknown));
   return json(404, { message: 'fixture route missing' });
 });
 await new Promise((r, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', r); });
@@ -199,7 +200,7 @@ async function execute(mode, name) {
   }
   const code = await new Promise(r => child.on('close', (code, signal) => r(signal || code)));
   clearTimeout(timeout); clearTimeout(hardStop);
-  assert.equal(fixtureTimedOut, false, `${name}/${mode}: native fixture child exceeded its deadline`);
+  assert.equal(fixtureTimedOut, false, `${name}/${mode}: native fixture child exceeded its deadline; unknown routes ${JSON.stringify(scenario.unknown)}`);
   assert.ok(!output.includes(fake)); assert.ok(!output.includes(env.GH_TOKEN));
   const statePath = join(operation, 'operation.json');
   return { code, output, operation, state: existsSync(statePath) ? JSON.parse(readFileSync(statePath, 'utf8')) : null };
