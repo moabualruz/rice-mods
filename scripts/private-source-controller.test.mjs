@@ -101,7 +101,8 @@ const server = createServer({ key, cert: readFileSync(certFile) }, async (req, r
     const receipt = { version: 1, repository: repo, head, workflow: '.github/workflows/private-source-qualification.yml', sourceRepository: entry.repo, sourceCommit: entry.commit, runID: 91001, runAttempt: 1, job: 'qualify', tokenSHA256: createHash('sha256').update(value).digest('hex') };
     if (scenario.mode === 'late-foreign') scenario.secret.updated_at = now();
     res.writeHead(200, { 'content-type': 'text/plain' });
-    return res.end(scenario.mode === 'missing-receipt' ? 'no ownership receipt\n' : 'timestamp mods-source-token-receipt:' + JSON.stringify(receipt) + '\n');
+    const marker = 'timestamp mods-source-token-receipt:' + JSON.stringify(receipt) + '\n';
+    return res.end(scenario.mode === 'missing-receipt' ? 'no ownership receipt\n' : scenario.mode === 'ambiguous-receipt' ? marker + marker : marker);
   }
   if (path.endsWith('/actions/runs/91001/cancel')) { scenario.cancels++; scenario.status = 'completed'; scenario.conclusion = 'cancelled'; return json(202); }
   if (path === '/graphql') return json(200, { data: {} });
@@ -161,7 +162,7 @@ async function execute(mode, name) {
   return { code, output, operation, state: existsSync(statePath) ? JSON.parse(readFileSync(statePath, 'utf8')) : null };
 }
 try {
-  for (const name of ['success204', 'watch-transport', 'failure', 'preexisting', 'foreign', 'recover', 'wrong-source', 'wrong-pin', 'short-lifetime', 'moved-head', 'changed-workflow', 'stale-source', 'unrelated-ci', 'arbitrary-gh', 'lease-busy', 'custody-lost', 'same-second-foreign', 'late-foreign', 'missing-receipt']) {
+  for (const name of ['success204', 'watch-transport', 'failure', 'preexisting', 'foreign', 'recover', 'wrong-source', 'wrong-pin', 'short-lifetime', 'moved-head', 'changed-workflow', 'stale-source', 'unrelated-ci', 'arbitrary-gh', 'lease-busy', 'custody-lost', 'same-second-foreign', 'late-foreign', 'missing-receipt', 'ambiguous-receipt']) {
     scenario = { mode: name, secret: name === 'preexisting' ? { name: 'MODS_SOURCE_READ_TOKEN', created_at: '2020-01-01T00:00:00Z', updated_at: '2020-01-01T00:00:00Z' } : null, status: 'completed', conclusion: name === 'failure' ? 'failure' : 'success', sets: 0, deletes: 0, dispatches: 0, cancels: 0, calls: [], unknown: [] };
     let result = await execute('operate', name);
     if (name === 'recover') { assert.equal(result.code, 'SIGKILL'); result = await execute('recover', name); assert.equal(scenario.cancels, 1); }
@@ -171,7 +172,7 @@ try {
     assert.equal(result.code, expected, name);
     const refused = ['preexisting', 'wrong-source', 'wrong-pin', 'short-lifetime', 'moved-head', 'changed-workflow', 'stale-source', 'unrelated-ci', 'arbitrary-gh', 'lease-busy', 'custody-lost'].includes(name);
     assert.equal(scenario.dispatches, refused ? 0 : 1, 'one native dispatch, including empty204');
-    assert.equal(scenario.deletes, refused || ['foreign', 'same-second-foreign', 'late-foreign', 'missing-receipt'].includes(name) ? 0 : 1, 'only owned secret deleted');
+    assert.equal(scenario.deletes, refused || ['foreign', 'same-second-foreign', 'late-foreign', 'missing-receipt', 'ambiguous-receipt'].includes(name) ? 0 : 1, 'only owned secret deleted');
     if (refused) assert.equal(scenario.sets, 0, 'refusal precedes secret mutation');
     assert.equal(scenario.unknown.length, 0, 'all native endpoints bound: ' + JSON.stringify(scenario.unknown));
     assert.ok(!JSON.stringify(result.state).includes(fake), 'no token persisted in operation metadata');
