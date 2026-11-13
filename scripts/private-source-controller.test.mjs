@@ -48,7 +48,7 @@ catch { process.exitCode = 1; }
 `);
 let scenario;
 const now = () => new Date(Math.floor(Date.now() / 1000) * 1000).toISOString();
-const run = () => ({ id: 91001, repository: { full_name: repo }, head_sha: head, head_branch: 'main', event: 'workflow_dispatch', path: '.github/workflows/private-source-qualification.yml', status: scenario.status, conclusion: scenario.conclusion, created_at: scenario.dispatchedAt || now(), updated_at: now(), html_url: `https://github.com/${repo}/actions/runs/91001`, workflow_id: 123, name: 'Private source qualification', display_title: `Private source qualification: ${entry.repo}`, run_number: 1, run_attempt: 1, jobs_url: `https://api.github.com/repos/${repo}/actions/runs/91001/jobs`, check_suite_id: 44 });
+const run = () => ({ id: 91001, repository: { full_name: repo }, head_sha: head, head_branch: 'main', event: 'workflow_dispatch', path: '.github/workflows/private-source-qualification.yml', status: scenario.status, conclusion: scenario.conclusion, created_at: scenario.dispatchedAt || now(), updated_at: now(), html_url: `https://github.com/${repo}/actions/runs/91001`, workflow_id: 123, name: 'Private source qualification', display_title: `Private source qualification: ${entry.repo}`, run_number: 1, run_attempt: 1, jobs_url: `https://fixture.invalid/repos/${repo}/actions/runs/91001/jobs`, check_suite_id: 44 });
 const server = createServer({ key, cert: readFileSync(certFile) }, async (req, res) => {
   const chunks = [];
   for await (const chunk of req) chunks.push(chunk);
@@ -100,6 +100,7 @@ const server = createServer({ key, cert: readFileSync(certFile) }, async (req, r
     return json(200, run());
   }
   if (path.endsWith('/actions/runs/91001/jobs') || path.endsWith('/actions/runs/91001/attempts/1/jobs')) return json(200, { total_count: 1, jobs: [{ id: 91101, name: 'qualify', run_id: 91001, head_sha: head, status: scenario.status, conclusion: scenario.conclusion, runner_id: 72, runner_name: 'fixture-linux', runner_group_id: 1, labels: ['ubuntu-latest'], steps: [] }] });
+  if (path === `/repos/${repo}/check-runs/91101/annotations`) return json(200, []);
   if (path.endsWith('/actions/jobs/91101/logs')) {
     const value = scenario.mode === 'same-second-foreign' ? 'fixture-foreign-token' : fake;
     const receipt = { version: 1, repository: repo, head, workflow: '.github/workflows/private-source-qualification.yml', sourceRepository: entry.repo, sourceCommit: entry.commit, runID: 91001, runAttempt: 1, job: 'qualify', tokenSHA256: createHash('sha256').update(value).digest('hex') };
