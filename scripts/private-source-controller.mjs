@@ -23,6 +23,7 @@ delete process.env.RICE_RELEASE_DOWNLOAD_TOKEN;
 delete process.env.RICE_RELEASE_DOWNLOAD_TOKEN_EXPIRES_AT;
 delete process.env.GH_TOKEN;
 delete process.env.GITHUB_TOKEN;
+delete process.env.MISE_GITHUB_TOKEN;
 const repo = 'moabualruz/rice-mods';
 const productRoot = fileURLToPath(new URL('../', import.meta.url));
 const selectedGH = nativeGH || trustedHostExecutable('gh');

@@ -36,6 +36,7 @@ writeFileSync(harness, `import { runPrivateSourceController } from ${JSON.string
 import { appendFileSync, existsSync } from 'node:fs';
 const [, , mode, bindingFile, directory] = process.argv;
 const withDeliveryLease = async ({ repository, run }) => {
+  if (process.env.MISE_GITHUB_TOKEN) throw Error('fixture inherited mise credential');
   if (repository !== 'moabualruz/rice-mods' || process.env.FIXTURE_MODE === 'lease-busy') throw Error('fixture custody refused');
   appendFileSync(process.env.FIXTURE_CUSTODY_LOG, 'acquire\\n');
   try { return await run({ assertHeld() {
@@ -176,6 +177,7 @@ async function execute(mode, name) {
   const operation = join(target, name);
   writeFileSync(bindingFile, JSON.stringify({ repository: repo, sourceRepository: scenario.mode === 'wrong-source' ? 'owner/unknown' : entry.repo, sourceCommit: scenario.mode === 'wrong-pin' ? 'b'.repeat(40) : entry.commit, sourceLimitsBlob: entry.limits, requiredCIRunID: 38939673060, requiredCIAttempt: 1, head, workflowSHA256: createHash('sha256').update(workflow).digest('hex'), helperDeliveryRef: 'fixture://helper', ...(scenario.mode === 'arbitrary-gh' ? { gh: '/untrusted/recipient' } : {}) }));
   const childEnv = { ...env, FIXTURE_MODE: scenario.mode, FIXTURE_CUSTODY_LOG: custodyLog, FIXTURE_CUSTODY_LOST: lostCustody, ...(scenario.mode === 'short-lifetime' ? { RICE_RELEASE_DOWNLOAD_TOKEN_EXPIRES_AT: new Date(Date.now() + 15 * 60_000).toISOString() } : {}) };
+  childEnv.MISE_GITHUB_TOKEN = 'fixture-mise-token';
   const child = spawn(process.execPath, [harness, mode, bindingFile, operation], { env: childEnv, stdio: ['ignore', 'pipe', 'pipe'] });
   let output = '';
   child.stdout.on('data', b => { output += b; }); child.stderr.on('data', b => { output += b; });

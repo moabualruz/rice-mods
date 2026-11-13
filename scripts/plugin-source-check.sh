@@ -63,7 +63,7 @@ if [ -n "${RICE_RELEASE_DOWNLOAD_TOKEN:-}" ] && [ -z "$selected_repository" ]; t
 fi
 export -n plugin_source_read_token
 plugin_source_read_token="${RICE_RELEASE_DOWNLOAD_TOKEN:-${GITHUB_TOKEN:-$(gh auth token 2>/dev/null || true)}}"
-unset GH_TOKEN GITHUB_TOKEN RICE_RELEASE_DOWNLOAD_TOKEN RICE_RELEASE_DOWNLOAD_TOKEN_EXPIRES_AT
+unset GH_TOKEN GITHUB_TOKEN MISE_GITHUB_TOKEN RICE_RELEASE_DOWNLOAD_TOKEN RICE_RELEASE_DOWNLOAD_TOKEN_EXPIRES_AT
 if [ -z "$plugin_source_read_token" ] && [ "$hosted_skip" = false ]; then
   echo "plugin source check: no token that can read the private sources" >&2
   exit 1

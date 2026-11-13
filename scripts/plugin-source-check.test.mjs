@@ -37,7 +37,7 @@ cat "$FIXTURE_ROOT/source.tgz"
 `, { mode: 0o755 });
   writeFileSync(join(root, "bin/claude"), `#!/usr/bin/env bash
 set -euo pipefail
-for variable in GH_TOKEN GITHUB_TOKEN RICE_RELEASE_DOWNLOAD_TOKEN RICE_RELEASE_DOWNLOAD_TOKEN_EXPIRES_AT plugin_source_read_token; do
+for variable in GH_TOKEN GITHUB_TOKEN MISE_GITHUB_TOKEN RICE_RELEASE_DOWNLOAD_TOKEN RICE_RELEASE_DOWNLOAD_TOKEN_EXPIRES_AT plugin_source_read_token; do
   if printenv "$variable" >/dev/null; then exit 92; fi
 done
 if [ "$1" = --version ]; then echo '0.0.0 fixture'; exit 0; fi
@@ -47,7 +47,7 @@ printf '{"success":true,"manifest":{"errors":[]},"contents":[]}\\n'
 `, { mode: 0o755 });
   writeFileSync(join(root, "bin/tar"), `#!/usr/bin/env bash
 set -euo pipefail
-for variable in GH_TOKEN GITHUB_TOKEN RICE_RELEASE_DOWNLOAD_TOKEN RICE_RELEASE_DOWNLOAD_TOKEN_EXPIRES_AT plugin_source_read_token; do
+for variable in GH_TOKEN GITHUB_TOKEN MISE_GITHUB_TOKEN RICE_RELEASE_DOWNLOAD_TOKEN RICE_RELEASE_DOWNLOAD_TOKEN_EXPIRES_AT plugin_source_read_token; do
   if printenv "$variable" >/dev/null; then exit 93; fi
 done
 exec /usr/bin/tar "$@"
@@ -105,6 +105,7 @@ test("the extractor and validator refuse inherited credential variables after a 
     FIXTURE_STATUS: "success",
     LIVE_RELEASE_CHECK: "required",
     GH_TOKEN: "synthetic-operator-token",
+    MISE_GITHUB_TOKEN: "synthetic-mise-token",
     RICE_RELEASE_DOWNLOAD_TOKEN: "synthetic-scoped-token",
     RICE_RELEASE_DOWNLOAD_TOKEN_EXPIRES_AT: "synthetic-expiry",
     plugin_source_read_token: "synthetic-exported-parent-token",
@@ -112,7 +113,7 @@ test("the extractor and validator refuse inherited credential variables after a 
   }, ["--repo", "owner/example"]);
   assert.equal(result.status, 0, result.stderr);
   assert.equal(readFileSync(join(root, "validations"), "utf8"), "validate\n");
-  assert.doesNotMatch(result.stdout + result.stderr, /synthetic-(operator|scoped|exported-parent)-token|synthetic-expiry/);
+  assert.doesNotMatch(result.stdout + result.stderr, /synthetic-(operator|mise|scoped|exported-parent)-token|synthetic-expiry/);
 });
 
 test("local and required checks refuse unreadable private repositories", () => {
