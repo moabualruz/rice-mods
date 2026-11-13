@@ -34,7 +34,7 @@ native_executable() {
   (( (8#$native_mode & 8#022) == 0 )) || return 1
   native_actual=$(/usr/bin/sha256sum -- "$native_path") || return 1
   [ "${native_actual%% *}" = "$native_sha" ] || return 1
-  if [ "$native_name" = bao-run ]; then
+  if [ "$native_name" = bao-run ] || [ "$native_name" = rice-helper ]; then
     native_parent=${native_path%/*}
     while [ -n "$native_parent" ]; do
       [ -d "$native_parent" ] || return 1

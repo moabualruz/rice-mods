@@ -2,7 +2,7 @@ import { createServer } from 'node:https';
 import { createServer as createProxy, connect } from 'node:net';
 import { generateKeyPairSync, createHash } from 'node:crypto';
 import { spawn, spawnSync, execFileSync } from 'node:child_process';
-import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, existsSync, lstatSync, symlinkSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, existsSync, lstatSync, symlinkSync, chmodSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -151,6 +151,22 @@ const hostRefusal = spawnSync('/bin/bash', [join(root, 'private-source-qualifica
 assert.notEqual(hostRefusal.status, 0);
 assert.ok(!existsSync(hostileMarker));
 assert.ok(!existsSync(join(refusedOperation, 'helper-command.log')));
+if (process.platform === 'linux' && process.arch === 'x64') {
+  const helperFixture = join(target, 'writable-helper-parent');
+  mkdirSync(helperFixture);
+  const helper = join(helperFixture, 'rice-helper');
+  const helperBytes = '#!/bin/sh\nexit 91\n';
+  writeFileSync(helper, helperBytes, { mode: 0o755 });
+  writeFileSync(join(helperFixture, 'private-source-qualification.sh'), readFileSync(join(root, 'private-source-qualification.sh')));
+  writeFileSync(join(helperFixture, 'private-source-host.json'), JSON.stringify({ version: 1, platform: 'linux', architecture: 'x64', executables: { 'rice-helper': { path: helper, sha256: createHash('sha256').update(helperBytes).digest('hex') } } }));
+  chmodSync(helperFixture, 0o775);
+  const writableParentOperation = join(target, 'writable-helper-refusal');
+  const writableParent = spawnSync('/bin/bash', [join(helperFixture, 'private-source-qualification.sh'), refusedBinding, writableParentOperation], { encoding: 'utf8', env: { ...process.env, HOME: emptyHome, PATH: hostileBin + ':/usr/bin:/bin' } });
+  assert.notEqual(writableParent.status, 0);
+  assert.match(writableParent.stderr, /reviewed Rice helper unavailable/);
+  assert.ok(!existsSync(join(writableParentOperation, 'helper-command.log')));
+  assert.ok(!existsSync(hostileMarker));
+}
 async function execute(mode, name) {
   const bindingFile = join(target, name + '-binding.json');
   const operation = join(target, name);
