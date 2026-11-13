@@ -112,7 +112,7 @@ const server = createServer({ key, cert: readFileSync(certFile) }, async (req, r
     return res.end(scenario.mode === 'missing-receipt' ? 'no ownership receipt\n' : scenario.mode === 'ambiguous-receipt' ? marker + marker : marker);
   }
   if (path.endsWith('/actions/runs/91001/cancel')) { scenario.cancels++; scenario.status = 'completed'; scenario.conclusion = 'cancelled'; return json(202); }
-  if (path === '/graphql') return json(200, { data: {} });
+  if (path === '/graphql' || path === '/api/graphql') return json(200, { data: {} });
   scenario.unknown.push({ method: req.method, path });
   writeFileSync(join(target, 'unknown-native-routes.json'), JSON.stringify(scenario.unknown));
   return json(404, { message: 'fixture route missing' });
