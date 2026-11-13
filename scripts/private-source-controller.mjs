@@ -50,7 +50,7 @@ const binding = JSON.parse(readFileSync(bindingFile, 'utf8'));
 const source = binding.sourceRepository;
 const head = binding.head;
 const entry = entries.find(value => value.repo === source);
-const bindingFields = new Set(['repository', 'sourceRepository', 'sourceCommit', 'sourceLimitsBlob', 'head', 'workflowSHA256', 'requiredCIRunID', 'requiredCIAttempt', 'helperDeliveryRef', 'helperSHA256']);
+const bindingFields = new Set(['repository', 'sourceRepository', 'sourceCommit', 'sourceLimitsBlob', 'head', 'workflowSHA256', 'requiredCIRunID', 'requiredCIAttempt', 'helperDeliveryRef']);
 if (binding.repository !== repo || !entry || !privateRepositories.includes(source) ||
     binding.sourceCommit !== entry.commit || binding.sourceLimitsBlob !== entry.limits ||
     !/^[0-9a-f]{40}$/.test(head || '') || binding.workflowSHA256 !== workflowSHA256 ||

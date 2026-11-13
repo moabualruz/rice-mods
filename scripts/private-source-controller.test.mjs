@@ -136,6 +136,21 @@ for (const operation of [preserved, linked]) {
 const relativeOperation = join(target, 'relative-refusal');
 assert.equal(spawnSync('bash', [join(root, 'private-source-qualification.sh'), 'relative-binding.json', relativeOperation]).status, 64);
 assert.ok(!existsSync(relativeOperation));
+const emptyHome = join(target, 'empty-home');
+const hostileBin = join(target, 'hostile-bin');
+mkdirSync(emptyHome);
+mkdirSync(hostileBin);
+const hostileMarker = join(target, 'untrusted-executable-called');
+for (const executable of ['bao-run', 'timeout', 'jq', 'mkdir', 'flock', 'dirname', 'ps']) {
+  writeFileSync(join(hostileBin, executable), `#!/bin/sh\nprintf called > '${hostileMarker}'\nexit 90\n`, { mode: 0o755 });
+}
+const refusedBinding = join(target, 'host-profile-refusal.json');
+writeFileSync(refusedBinding, JSON.stringify({ sourceRepository: entry.repo }));
+const refusedOperation = join(target, 'host-profile-refusal');
+const hostRefusal = spawnSync('/bin/bash', [join(root, 'private-source-qualification.sh'), refusedBinding, refusedOperation], { encoding: 'utf8', env: { ...process.env, HOME: emptyHome, PATH: hostileBin + ':/usr/bin:/bin' } });
+assert.notEqual(hostRefusal.status, 0);
+assert.ok(!existsSync(hostileMarker));
+assert.ok(!existsSync(join(refusedOperation, 'helper-command.log')));
 async function execute(mode, name) {
   const bindingFile = join(target, name + '-binding.json');
   const operation = join(target, name);

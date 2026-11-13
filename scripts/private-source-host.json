@@ -3,6 +3,12 @@
   "platform": "linux",
   "architecture": "x64",
   "executables": {
+    "rice-helper": {
+      "path": "/workspace/backbone/rice-observe/rice-observe",
+      "sha256": "b44cb222b73cc45ab6f56550c201b821a426de20cb562fc65cfc48d0e54141d1",
+      "sourceRevision": "6b0ff3002f2cf87070bd3dc670be4728a8e10fd3",
+      "goVersion": "go1.27.1"
+    },
     "gh": {
       "homeRelative": ".local/bin/gh",
       "sha256": "981589ab4508a443cde772708cac0b530298f1b63126d3565f2bb9e72fc63195"
