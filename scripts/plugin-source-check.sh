@@ -60,8 +60,10 @@ if [ -n "${RICE_RELEASE_DOWNLOAD_TOKEN:-}" ] && [ -z "$selected_repository" ]; t
   echo "plugin source check: a repository-scoped session requires --repo" >&2
   exit 1
 fi
-token="${RICE_RELEASE_DOWNLOAD_TOKEN:-${GITHUB_TOKEN:-$(gh auth token 2>/dev/null || true)}}"
-if [ -z "$token" ] && [ "$hosted_skip" = false ]; then
+export -n plugin_source_read_token
+plugin_source_read_token="${RICE_RELEASE_DOWNLOAD_TOKEN:-${GITHUB_TOKEN:-$(gh auth token 2>/dev/null || true)}}"
+unset GH_TOKEN GITHUB_TOKEN RICE_RELEASE_DOWNLOAD_TOKEN RICE_RELEASE_DOWNLOAD_TOKEN_EXPIRES_AT
+if [ -z "$plugin_source_read_token" ] && [ "$hosted_skip" = false ]; then
   echo "plugin source check: no token that can read the private sources" >&2
   exit 1
 fi
@@ -74,7 +76,7 @@ while IFS=$'\t' read -r name repo sha; do
   [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || { echo "plugin source check: $name has no exact sha pin" >&2; exit 1; }
   dest="$work/$name"
   mkdir -p "$dest"
-  if failure="$(GH_TOKEN="$token" gh api "repos/$repo/tarball/$sha" 2>&1 > "$work/$name.tgz")"; then
+  if failure="$(GH_TOKEN="$plugin_source_read_token" gh api "repos/$repo/tarball/$sha" 2>&1 > "$work/$name.tgz")"; then
     :
   else
     status=native-command
