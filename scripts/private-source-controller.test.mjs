@@ -19,6 +19,7 @@ const seal = generateKeyPairSync('x25519').publicKey.export({ type: 'spki', form
 const workflow = readFileSync(new URL('../.github/workflows/private-source-qualification.yml', import.meta.url));
 const entry = JSON.parse(readFileSync(new URL('../.claude-plugin/marketplace.lock.json', import.meta.url), 'utf8')).plugins[0];
 const gh = execFileSync('which', ['gh'], { encoding: 'utf8' }).trim();
+const ghSHA256 = createHash('sha256').update(readFileSync(gh)).digest('hex');
 const repo = 'moabualruz/rice-mods';
 const head = 'a'.repeat(40);
 const fake = 'fixture-owned-installation-token';
@@ -39,7 +40,7 @@ const withDeliveryLease = async ({ repository, run }) => {
     appendFileSync(process.env.FIXTURE_CUSTODY_LOG, 'held\\n');
   } }); } finally { appendFileSync(process.env.FIXTURE_CUSTODY_LOG, 'release\\n'); }
 };
-try { process.exitCode = await runPrivateSourceController({ mode, bindingFile, directory, withDeliveryLease }); }
+try { process.exitCode = await runPrivateSourceController({ mode, bindingFile, directory, withDeliveryLease, nativeGH: ${JSON.stringify({path:gh,sha256:ghSHA256})} }); }
 catch { process.exitCode = 1; }
 `);
 let scenario;
@@ -95,7 +96,7 @@ const server = createServer({ key, cert: readFileSync(certFile) }, async (req, r
     if (scenario.mode === 'watch-transport' && !scenario.failedWatch) { scenario.failedWatch = true; res.setHeader('Retry-After', '1'); return json(503, { message: 'owned retry fixture' }); }
     return json(200, run());
   }
-  if (path.endsWith('/actions/runs/91001/jobs')) return json(200, { total_count: 1, jobs: [{ id: 91101, name: 'qualify', run_id: 91001, run_attempt: 1, status: scenario.status, conclusion: scenario.conclusion, runner_id: 72, runner_name: 'fixture-linux', runner_group_id: 1, labels: ['ubuntu-latest'], steps: [] }] });
+  if (path.endsWith('/actions/runs/91001/jobs') || path.endsWith('/actions/runs/91001/attempts/1/jobs')) return json(200, { total_count: 1, jobs: [{ id: 91101, name: 'qualify', run_id: 91001, head_sha: head, status: scenario.status, conclusion: scenario.conclusion, runner_id: 72, runner_name: 'fixture-linux', runner_group_id: 1, labels: ['ubuntu-latest'], steps: [] }] });
   if (path.endsWith('/actions/jobs/91101/logs')) {
     const value = scenario.mode === 'same-second-foreign' ? 'fixture-foreign-token' : fake;
     const receipt = { version: 1, repository: repo, head, workflow: '.github/workflows/private-source-qualification.yml', sourceRepository: entry.repo, sourceCommit: entry.commit, runID: 91001, runAttempt: 1, job: 'qualify', tokenSHA256: createHash('sha256').update(value).digest('hex') };

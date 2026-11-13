@@ -3,6 +3,7 @@
 set -euo pipefail
 set +x
 umask 077
+unset GH_TOKEN GITHUB_TOKEN RICE_RELEASE_DOWNLOAD_TOKEN RICE_RELEASE_DOWNLOAD_TOKEN_EXPIRES_AT
 
 [ "$#" -eq 2 ] || { echo 'usage: private-source-qualification.sh BINDING_JSON OPERATION_DIRECTORY' >&2; exit 64; }
 binding=$1
@@ -17,17 +18,50 @@ mkdir -p -- "$lock_root"
 exec 9>> "$lock_root/private-source-secret.lock"
 flock -n 9 || { echo 'JIT controller already owns this operation' >&2; exit 73; }
 
+host_profile="$here/private-source-host.json"
+native_executable() {
+  local native_name="$1" native_path native_sha native_actual native_uid native_mode native_parent
+  /usr/bin/jq -e '.version == 1 and .platform == "linux" and .architecture == "x64"' "$host_profile" >/dev/null || return 1
+  [ "$(/usr/bin/uname -s)" = Linux ] && [ "$(/usr/bin/uname -m)" = x86_64 ] || return 1
+  native_path=$(/usr/bin/jq -er --arg name "$native_name" --arg home "$HOME" '.executables[$name] | (if .homeRelative then $home + "/" + .homeRelative else .path end) | select(type == "string" and startswith("/"))' "$host_profile") || return 1
+  native_sha=$(/usr/bin/jq -er --arg name "$native_name" '.executables[$name].sha256 | select(test("^[0-9a-f]{64}$"))' "$host_profile") || return 1
+  native_path=$(/usr/bin/readlink -f -- "$native_path") || return 1
+  [ -f "$native_path" ] && [ -x "$native_path" ] || return 1
+  native_uid=$(/usr/bin/stat -c '%u' -- "$native_path") || return 1
+  native_mode=$(/usr/bin/stat -c '%a' -- "$native_path") || return 1
+  [ "$native_uid" -eq 0 ] || [ "$native_uid" -eq "$(/usr/bin/id -u)" ] || return 1
+  case "$native_mode" in ''|*[!0-7]*) return 1 ;; esac
+  (( (8#$native_mode & 8#022) == 0 )) || return 1
+  native_actual=$(/usr/bin/sha256sum -- "$native_path") || return 1
+  [ "${native_actual%% *}" = "$native_sha" ] || return 1
+  if [ "$native_name" = bao-run ]; then
+    native_parent=${native_path%/*}
+    while [ -n "$native_parent" ]; do
+      [ -d "$native_parent" ] || return 1
+      native_uid=$(/usr/bin/stat -c '%u' -- "$native_parent") || return 1
+      native_mode=$(/usr/bin/stat -c '%a' -- "$native_parent") || return 1
+      [ "$native_uid" -eq 0 ] || [ "$native_uid" -eq "$(/usr/bin/id -u)" ] || return 1
+      case "$native_mode" in ''|*[!0-7]*) return 1 ;; esac
+      (( (8#$native_mode & 8#022) == 0 )) || return 1
+      [ "$native_parent" != / ] || break
+      native_parent=${native_parent%/*}
+      [ -n "$native_parent" ] || native_parent=/
+    done
+  fi
+  printf '%s\n' "$native_path"
+}
+
 helper=/workspace/backbone/rice-observe/rice-observe
 helper_sha=$(jq -er '.helperSHA256 | select(test("^[0-9a-f]{64}$"))' "$binding")
-operator=$(command -v bao-run)
+operator=$(native_executable bao-run) || { echo 'reviewed operator executable unavailable' >&2; exit 69; }
 host_root=$(CDPATH='' cd -- "$here/.." && pwd)
 app_id=4018471
 source_repository=$(jq -er '.sourceRepository | select(test("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"))' "$binding")
 jq -e --arg repository "$source_repository" 'index($repository) != null' "$here/private-repositories.json" >/dev/null || { echo 'source repository is not declared private' >&2; exit 65; }
-node=$(mise which --tool node@24.18.0 node)
-timeout=$(command -v timeout)
+node=$(native_executable node) || { echo 'reviewed mise Node executable unavailable' >&2; exit 69; }
+timeout=$(native_executable timeout) || { echo 'reviewed timeout executable unavailable' >&2; exit 69; }
 [ -x "$helper" ] && [ -x "$operator" ] || { echo 'required delivered host executable unavailable' >&2; exit 69; }
-actual=$(sha256sum -- "$helper")
+actual=$(/usr/bin/sha256sum -- "$helper")
 [ "${actual%% *}" = "$helper_sha" ] || { echo 'delivered helper digest mismatch' >&2; exit 65; }
 cd -- "$host_root"
 
@@ -58,7 +92,7 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 
 # Native timeout forwards cancellation to the owned helper group; its defer revokes the token.
-"$timeout" --signal=TERM --kill-after=15s 17m "$operator" -- "$helper" github with-contents-read --repo "$source_repository" --timeout 15m --app-id "$app_id" --key bao://kv/homelab/rice-observe-app#private-key -- "$node" "$here/private-source-controller.mjs" operate "$binding" "$operation" > "$operation/helper-command.log" 2>&1 &
+"$timeout" --signal=TERM --kill-after=15s 17m /bin/bash "$operator" -- "$helper" github with-contents-read --repo "$source_repository" --timeout 15m --app-id "$app_id" --key bao://kv/homelab/rice-observe-app#private-key -- "$node" "$here/private-source-controller.mjs" operate "$binding" "$operation" > "$operation/helper-command.log" 2>&1 &
 supervisor=$!
 supervisor_birth=$(ps -p "$supervisor" -o lstart=)
 jq -n --arg at "$(date -u +%FT%TZ)" --arg birth "$supervisor_birth" --arg helper "$helper_sha" --argjson pid "$supervisor" '{startedAt:$at,supervisorPID:$pid,supervisorBirth:$birth,helperSHA256:$helper,scope:"Actual JIT contents-read controller, bounded native helper"}' > "$operation/launcher-start.json"

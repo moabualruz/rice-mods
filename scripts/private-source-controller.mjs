@@ -1,4 +1,4 @@
-import { spawn, spawnSync, execFileSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { readFileSync, writeFileSync, renameSync, mkdirSync, existsSync, lstatSync, realpathSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -7,6 +7,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
 import { validateMarketplaceLock } from './marketplace-lock.mjs';
+import { trustedHostExecutable } from './private-source-host.mjs';
 
 const require = createRequire(import.meta.url);
 async function installedDeliveryLease({ repository, run }) {
@@ -15,13 +16,21 @@ async function installedDeliveryLease({ repository, run }) {
   return withRiceDeliveryLease({ repository, root: toolkit, run });
 }
 
-export async function runPrivateSourceController({ mode, bindingFile, directory, withDeliveryLease = installedDeliveryLease }) {
+export async function runPrivateSourceController({ mode, bindingFile, directory, withDeliveryLease = installedDeliveryLease, nativeGH }) {
+const token = process.env.RICE_RELEASE_DOWNLOAD_TOKEN || '';
+const expires = Date.parse(process.env.RICE_RELEASE_DOWNLOAD_TOKEN_EXPIRES_AT || '');
+delete process.env.RICE_RELEASE_DOWNLOAD_TOKEN;
+delete process.env.RICE_RELEASE_DOWNLOAD_TOKEN_EXPIRES_AT;
+delete process.env.GH_TOKEN;
+delete process.env.GITHUB_TOKEN;
 const repo = 'moabualruz/rice-mods';
 const productRoot = fileURLToPath(new URL('../', import.meta.url));
-const ghBinary = realpathSync(execFileSync('which', ['gh'], { encoding: 'utf8' }).trim());
+const selectedGH = nativeGH || trustedHostExecutable('gh');
+const ghBinary = realpathSync(selectedGH.path);
 const ghInfo = lstatSync(ghBinary);
 if (!ghInfo.isFile() || (ghInfo.uid !== process.getuid() && ghInfo.uid !== 0) || (ghInfo.mode & 0o022)) throw new Error('trusted native gh installation required');
 const ghSHA256 = createHash('sha256').update(readFileSync(ghBinary)).digest('hex');
+if (ghSHA256 !== selectedGH.sha256) throw new Error('trusted native gh digest required');
 const workflow = '.github/workflows/private-source-qualification.yml';
 const workflowName = 'private-source-qualification.yml';
 const workflowSHA256 = createHash('sha256').update(readFileSync(new URL('../' + workflow, import.meta.url))).digest('hex');
@@ -74,12 +83,6 @@ function save(patch) {
   return next;
 }
 if (mode === 'operate' && load()) throw new Error('operation already exists; use recovery, never redispatch');
-const token = process.env.RICE_RELEASE_DOWNLOAD_TOKEN || '';
-const expires = Date.parse(process.env.RICE_RELEASE_DOWNLOAD_TOKEN_EXPIRES_AT || '');
-delete process.env.RICE_RELEASE_DOWNLOAD_TOKEN;
-delete process.env.RICE_RELEASE_DOWNLOAD_TOKEN_EXPIRES_AT;
-delete process.env.GH_TOKEN;
-delete process.env.GITHUB_TOKEN;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const failure = (phase, result) => Object.assign(new Error(`phase=${phase} exit=${result.code} timeout=${result.timeout} output_bytes=${result.bytes} output_sha256=${result.sha256}`), { phase });
 const birth = pid => spawnSync('/bin/ps', ['-p', String(pid), '-o', 'lstart='], { encoding: 'utf8' }).stdout.trim();
@@ -142,7 +145,7 @@ async function verifyDeliveredSource() {
   if (commit.sha !== head || !/^[0-9a-f]{40}$/.test(commit.tree?.sha || '')) throw new Error('delivered commit identity mismatch');
   const tree = await api('delivered-tree', `repos/${repo}/git/trees/${commit.tree.sha}?recursive=1`);
   if (tree.truncated !== false || !Array.isArray(tree.tree)) throw new Error('complete delivered source tree required');
-  const paths = ['.claude-plugin/marketplace.json', '.claude-plugin/marketplace.lock.json', 'README.md', 'scripts/private-repositories.json', 'scripts/plugin-source-check.sh', 'scripts/marketplace-lock.mjs', 'release-packages/scripts/plugin.sh', 'release-packages/scripts/vendor-lock.sh', 'release-packages.lock', 'vendir.yml', 'vendir.lock.yml', 'scripts/private-source-controller.mjs', 'scripts/private-source-qualification.sh', '.github/workflows/ci.yml', workflow];
+  const paths = ['.claude-plugin/marketplace.json', '.claude-plugin/marketplace.lock.json', 'README.md', 'scripts/private-repositories.json', 'scripts/plugin-source-check.sh', 'scripts/marketplace-lock.mjs', 'release-packages/scripts/plugin.sh', 'release-packages/scripts/vendor-lock.sh', 'release-packages.lock', 'vendir.yml', 'vendir.lock.yml', 'scripts/private-source-controller.mjs', 'scripts/private-source-qualification.sh', 'scripts/private-source-host.json', 'scripts/private-source-host.mjs', '.github/workflows/ci.yml', workflow];
   for (const path of paths) {
     const info = lstatSync(join(productRoot, path));
     if (!info.isFile() || info.isSymbolicLink()) throw new Error('regular delivered source file required');
@@ -153,9 +156,9 @@ async function verifyDeliveredSource() {
   }
 }
 async function verifyTokenReceipt(run) {
-  const jobs = await api('receipt-jobs', `repos/${repo}/actions/runs/${run.id}/jobs?per_page=100`);
+  const jobs = await api('receipt-jobs', `repos/${repo}/actions/runs/${run.id}/attempts/${run.attempt}/jobs?per_page=100`);
   if (!Array.isArray(jobs.jobs) || jobs.total_count !== jobs.jobs.length) throw new Error('complete receipt job inventory required');
-  const matches = jobs.jobs.filter(value => value.name === 'qualify' && value.run_id === run.id && value.run_attempt === run.attempt);
+  const matches = jobs.jobs.filter(value => value.name === 'qualify' && value.run_id === run.id && value.head_sha === head);
   if (matches.length !== 1 || !Number.isSafeInteger(matches[0].id)) throw new Error('exact qualification job required');
   const job = matches[0];
   const logs = await gh('token-receipt', ['api', `repos/${repo}/actions/jobs/${job.id}/logs`]);
