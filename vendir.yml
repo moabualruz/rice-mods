@@ -9,7 +9,9 @@ directories:
           url: https://github.com/moabualruz/rice-release.git
           ref: templates-v0.3.8
         includePaths:
-          - templates/packages/**/*
+          - templates/packages/LICENSE
+          - templates/packages/scripts/plugin.sh
+          - templates/packages/scripts/vendor-lock.sh
         newRootPath: templates/packages
   - path: tools/fetch
     contents:

@@ -1,9 +1,0 @@
-{
-  "name": "@moabualruz/rice-release-probe",
-  "version": "0.1.0",
-  "description": "rice-release npm package fixture; safe to delete",
-  "license": "Apache-2.0",
-  "main": "index.js",
-  "files": ["index.js", "README.md"],
-  "publishConfig": { "registry": "https://registry.example.invalid/" }
-}
