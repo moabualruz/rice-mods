@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 import { validateMarketplaceLock } from './marketplace-lock.mjs';
 import { trustedHostExecutable } from './private-source-host.mjs';
-import { qualification, receiptRecovery, sha256, exactCommit, exactDigest, positiveID, inspectRunIdentity, admittedRun, verifyReceipt } from './private-source-protocol.mjs';
+import { qualification, receiptRecovery, sha256, exactCommit, exactDigest, positiveID, inspectRunIdentity, inspectDispatchOwnership, admittedRun, verifyReceipt } from './private-source-protocol.mjs';
 
 const require = createRequire(import.meta.url);
 async function installedDeliveryLease({ repository, run }) {
@@ -153,7 +153,8 @@ async function secretMetadata() {
 }
 const sameSecret = (a, b) => a && b && a.name === b.name && a.created_at === b.created_at && a.updated_at === b.updated_at;
 function originalSnapshot() {
-  const reference = load()?.original || { bindingFile: originalBindingFile, directory: originalDirectory };
+  const recoveryState = load();
+  const reference = recoveryState?.original || { bindingFile: originalBindingFile, directory: originalDirectory };
   if (typeof reference.bindingFile !== 'string' || typeof reference.directory !== 'string' || resolve(reference.bindingFile) !== reference.bindingFile || resolve(reference.directory) !== reference.directory || reference.directory === dir) throw new Error('exact original operation references required');
   const info = lstatSync(reference.directory);
   if (!info.isDirectory() || info.isSymbolicLink() || info.uid !== process.getuid() || (info.mode & 0o077)) throw new Error('original operation must be private and owned');
@@ -163,14 +164,15 @@ function originalSnapshot() {
   const b = originalBinding.value, s = originalState.value;
   const fields = ['repository', 'sourceRepository', 'sourceCommit', 'sourceLimitsBlob', 'head', 'workflowSHA256', 'requiredCIRunID', 'requiredCIAttempt', 'helperDeliveryRef'];
   if (Object.keys(b).length !== fields.length || Object.keys(b).some(key => !fields.includes(key)) || b.repository !== repo || b.sourceRepository !== source || b.sourceCommit !== entry.commit || b.sourceLimitsBlob !== entry.limits || !exactCommit(b.head) || !exactDigest(b.workflowSHA256) || !positiveID(b.requiredCIRunID) || !positiveID(b.requiredCIAttempt) || typeof b.helperDeliveryRef !== 'string' || !b.helperDeliveryRef) throw new Error('original source binding mismatch');
-  if (s.version !== 1 || (s.kind && s.kind !== qualification.kind) || s.bindingSHA256 !== originalBinding.sha256 || s.repository !== repo || s.sourceRepository !== source || s.sourceCommit !== entry.commit || s.sourceLimitsBlob !== entry.limits || s.head !== b.head || s.workflow !== qualification.workflow || s.secret !== secret || !exactDigest(s.tokenSHA256) || s.custody?.repository !== repo || s.custody?.kind !== 'native-repository-delivery-lease' || s.activeCommand !== null || s.controllerExit !== 1 || !Number.isFinite(Date.parse(s.controllerEndedAt)) || !Number.isFinite(Date.parse(s.setAttemptedAt)) || !Number.isFinite(Date.parse(s.dispatchAttemptedAt)) || s.secretDeletedAt || !positiveID(s.run?.id) || s.run.attempt !== 1 || s.run.head !== b.head || s.run.repository !== repo || s.run.workflow !== qualification.workflow || s.run.event !== 'workflow_dispatch' || s.secretOwned?.name !== secret || ![s.secretOwned.created_at, s.secretOwned.updated_at].every(value => typeof value === 'string' && Number.isFinite(Date.parse(value)))) throw new Error('original failed operation authority mismatch');
+  if (s.version !== 1 || (s.kind && s.kind !== qualification.kind) || s.bindingSHA256 !== originalBinding.sha256 || s.repository !== repo || s.sourceRepository !== source || s.sourceCommit !== entry.commit || s.sourceLimitsBlob !== entry.limits || s.head !== b.head || s.workflow !== qualification.workflow || s.secret !== secret || !exactDigest(s.tokenSHA256) || s.custody?.repository !== repo || s.custody?.kind !== 'native-repository-delivery-lease' || s.activeCommand !== null || s.controllerExit !== 1 || !Number.isFinite(Date.parse(s.controllerEndedAt)) || !Number.isFinite(Date.parse(s.setAttemptedAt)) || !Number.isFinite(Date.parse(s.dispatchAttemptedAt)) || s.secretDeletedAt || !positiveID(s.run?.id) || s.run.attempt !== 1 || s.run.head !== b.head || s.run.repository !== repo || s.run.workflow !== qualification.workflow || s.run.event !== 'workflow_dispatch' || !Number.isFinite(Date.parse(s.run.createdAt)) || !Array.isArray(s.beforeRunIDs) || !s.beforeRunIDs.every(positiveID) || s.beforeRunIDs.includes(s.run.id) || s.secretOwned?.name !== secret || ![s.secretOwned.created_at, s.secretOwned.updated_at].every(value => typeof value === 'string' && Number.isFinite(Date.parse(value)))) throw new Error('original failed operation authority mismatch');
+  if (recoveryState && (recoveryState.kind !== receiptRecovery.kind || recoveryState.bindingSHA256 !== bindingSHA256 || recoveryState.repository !== repo || recoveryState.head !== head || recoveryState.workflow !== workflow || recoveryState.sourceRepository !== source || recoveryState.sourceCommit !== entry.commit || recoveryState.sourceLimitsBlob !== entry.limits || recoveryState.originalBindingSHA256 !== binding.originalBindingSHA256 || recoveryState.originalOperationSHA256 !== binding.originalOperationSHA256 || recoveryState.tokenSHA256 !== s.tokenSHA256 || !sameSecret(recoveryState.secretOwned, s.secretOwned) || recoveryState.issuerAccess !== false || recoveryState.qualification !== false)) throw new Error('recovery authority differs from immutable original');
   return { binding: b, state: s, reference: { bindingFile: reference.bindingFile, directory: reference.directory } };
 }
 async function verifyOriginalOperation() {
   const original = originalSnapshot();
   const content = await api('original-workflow', `repos/${repo}/contents/${qualification.workflow}?ref=${original.binding.head}`);
   if (content.encoding !== 'base64' || digest(Buffer.from(content.content, 'base64')) !== original.binding.workflowSHA256) throw new Error('original workflow digest mismatch');
-  const run = await admitRun(original.state.run.id, 'original-run', { targetHead: original.binding.head, targetProtocol: qualification });
+  const run = await admitRun(original.state.run.id, 'original-run', { targetHead: original.binding.head, targetProtocol: qualification, ownership: { beforeRunIDs: original.state.beforeRunIDs, attemptedAt: original.state.dispatchAttemptedAt, createdAt: original.state.run.createdAt } });
   if (run.status !== 'completed') throw new Error('original operation run must be terminal');
   return original;
 }
@@ -215,17 +217,17 @@ async function verifyTokenReceipt(run) {
   const expected = { version: 1, repository: repo, head, workflow, sourceRepository: source, sourceCommit: entry.commit, runID: run.id, runAttempt: run.attempt, job: protocol.job, tokenSHA256: load().tokenSHA256 };
   if (protocol === receiptRecovery) {
     const original = originalSnapshot();
-    Object.assign(expected, { kind: 'current-secret-value', originalBindingSHA256: binding.originalBindingSHA256, originalHead: original.binding.head, originalWorkflowSHA256: original.binding.workflowSHA256, originalRunID: original.state.run.id, originalRunAttempt: original.state.run.attempt });
+    Object.assign(expected, { kind: 'current-secret-value', tokenSHA256: original.state.tokenSHA256, originalBindingSHA256: binding.originalBindingSHA256, originalHead: original.binding.head, originalWorkflowSHA256: original.binding.workflowSHA256, originalRunID: original.state.run.id, originalRunAttempt: original.state.run.attempt });
   }
   verifyReceipt(receipt, expected);
   save({ tokenReceipt: { ...expected, jobID: job.id } });
 }
 async function runs() {
   const result = await api('dispatch-inventory', `repos/${repo}/actions/workflows/${workflowName}/runs?event=workflow_dispatch&branch=main&head_sha=${head}&per_page=100`);
-  if (result.total_count > 100 || !Array.isArray(result.workflow_runs)) throw new Error('dispatch inventory exceeds bounded page');
+  if (result.total_count > 100 || !Array.isArray(result.workflow_runs) || result.total_count !== result.workflow_runs.length || !result.workflow_runs.every(v => positiveID(v.id))) throw new Error('dispatch inventory exceeds bounded page');
   return result.workflow_runs;
 }
-async function admitRun(id, phase, { publication = false, targetHead = head, targetProtocol = protocol } = {}) {
+async function admitRun(id, phase, { publication = false, targetHead = head, targetProtocol = protocol, ownership } = {}) {
   if (!positiveID(id)) throw new Error('exact native run ID required');
   const target = { id, repository: repo, head: targetHead, source, protocol: targetProtocol };
   const deadline = Date.now() + (publication ? 10_000 : 30_000);
@@ -233,7 +235,9 @@ async function admitRun(id, phase, { publication = false, targetHead = head, tar
     const remaining = deadline - Date.now();
     if (remaining <= 0) break;
     const value = await api(phase, `repos/${repo}/actions/runs/${id}`, { limit: remaining });
-    const mismatches = inspectRunIdentity(value, target);
+    const state = load();
+    const scope = ownership || { beforeRunIDs: state.beforeRunIDs, attemptedAt: state.dispatchAttemptedAt, createdAt: state.run?.id === id ? state.run.createdAt : null };
+    const mismatches = [...inspectRunIdentity(value, target), ...inspectDispatchOwnership(value, scope)];
     if (!mismatches.length) return admittedRun(value, target);
     const facts = { at: new Date().toISOString(), phase, runID: id, fields: mismatches };
     save({ ...(load().firstRunIdentityMismatch ? {} : { firstRunIdentityMismatch: facts }), runIdentityMismatches: [...(load().runIdentityMismatches || []), facts].slice(-7) });
@@ -286,7 +290,7 @@ async function cleanup({ receiptDeletion = true } = {}) {
     const current = await secretMetadata();
     if (!current && protocol === receiptRecovery) { save({ secretAbsentObservedAt: new Date().toISOString() }); throw new Error('original secret absent; no owned deletion inferred'); }
     if (current) {
-      const owned = state.secretOwned;
+      const owned = protocol === receiptRecovery ? originalSnapshot().state.secretOwned : state.secretOwned;
       if (!owned || !sameSecret(owned, current)) throw new Error('secret ownership unknown or metadata changed; preserve it');
       if (protocol === receiptRecovery) { await verifyCurrentDelivery(); await verifyOriginalOperation(); }
       const run = await finalRun();
@@ -340,6 +344,7 @@ try {
   if (mode === 'recover') {
     if (!load()) throw new Error('no owned operation to recover');
     if (protocol === receiptRecovery) {
+      originalSnapshot();
       await stopRecordedCommand();
       await verifyCurrentDelivery();
       await verifyOriginalOperation();

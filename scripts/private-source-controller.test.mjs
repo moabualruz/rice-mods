@@ -56,7 +56,7 @@ const currentProtocol = () => recovery() ? receiptRecovery : qualification;
 const runID = () => recovery() ? 92001 : 91001;
 const jobID = () => recovery() ? 92101 : 91101;
 const run = () => ({ id: runID(), repository: { full_name: repo }, head_sha: head, head_branch: 'main', event: 'workflow_dispatch', path: currentProtocol().workflow, status: scenario.status, conclusion: scenario.conclusion, created_at: scenario.dispatchedAt || now(), updated_at: now(), html_url: `https://github.com/${repo}/actions/runs/${runID()}`, workflow_id: 123, name: currentProtocol().title, display_title: `${currentProtocol().title}: ${entry.repo}`, run_number: 1, run_attempt: 1, jobs_url: `https://fixture.invalid/repos/${repo}/actions/runs/${runID()}/jobs`, check_suite_id: 44 });
-const originalRun = () => ({ ...run(), id: 91001, head_sha: 'd'.repeat(40), path: qualification.workflow, status: scenario.mode === 'receipt-original-active' ? 'in_progress' : 'completed', conclusion: 'cancelled', display_title: `${qualification.title}: ${entry.repo}` });
+const originalRun = () => ({ ...run(), id: 91001, head_sha: 'd'.repeat(40), path: qualification.workflow, status: scenario.mode === 'receipt-original-active' ? 'in_progress' : 'completed', conclusion: 'cancelled', display_title: `${qualification.title}: ${entry.repo}`, created_at: scenario.originalCreatedAt });
 const server = createServer({ key, cert: readFileSync(certFile) }, async (req, res) => {
   const chunks = [];
   for await (const chunk of req) chunks.push(chunk);
@@ -93,7 +93,7 @@ const server = createServer({ key, cert: readFileSync(certFile) }, async (req, r
   }
   if (path.endsWith('/actions/workflows/' + currentProtocol().workflow.split('/').at(-1) + '/runs')) {
     if (scenario.mode === 'custody-lost') writeFileSync(lostCustody, 'lost');
-    return json(200, { total_count: scenario.dispatched ? 1 : 0, workflow_runs: scenario.dispatched ? [run()] : [] });
+    return json(200, { total_count: scenario.dispatched || scenario.mode === 'prior-handle' ? 1 : 0, workflow_runs: scenario.dispatched || scenario.mode === 'prior-handle' ? [run()] : [] });
   }
   if (path.endsWith('/actions/workflows/' + currentProtocol().workflow.split('/').at(-1)) || path.endsWith('/actions/workflows/123')) return json(200, { id: 123, name: currentProtocol().title, path: currentProtocol().workflow, state: 'active' });
   if (path.endsWith('/actions/workflows/123/dispatches')) {
@@ -104,6 +104,7 @@ const server = createServer({ key, cert: readFileSync(certFile) }, async (req, r
     scenario.dispatches++; scenario.dispatched = true; scenario.dispatchedAt = now();
     if (scenario.mode === 'foreign') scenario.secret.updated_at = '2099-01-01T00:00:00Z';
     if (scenario.mode === 'recover' || scenario.mode === 'receipt-resume') { scenario.status = 'in_progress'; scenario.conclusion = null; }
+    if (scenario.mode === 'prior-handle') return json(200, { workflow_run_id: runID(), html_url: `https://github.com/${repo}/actions/runs/${runID()}` });
     return json(204);
   }
   if (recovery() && path.endsWith('/actions/runs/91001')) return json(200, originalRun());
@@ -119,13 +120,18 @@ const server = createServer({ key, cert: readFileSync(certFile) }, async (req, r
   if (path.endsWith('/actions/runs/' + runID() + '/jobs') || path.endsWith('/actions/runs/' + runID() + '/attempts/1/jobs')) return json(200, { total_count: 1, jobs: [{ id: jobID(), name: currentProtocol().job, run_id: runID(), head_sha: head, status: scenario.status, conclusion: scenario.conclusion, runner_id: 72, runner_name: 'fixture-linux', runner_group_id: 1, labels: ['ubuntu-latest'], steps: [] }] });
   if (path === `/repos/${repo}/check-runs/${jobID()}/annotations`) return json(200, []);
   if (path.endsWith('/actions/jobs/' + jobID() + '/logs')) {
-    const value = ['same-second-foreign', 'receipt-foreign-value'].includes(scenario.mode) ? 'fixture-foreign-token' : fake;
+    const value = ['same-second-foreign', 'receipt-foreign-value', 'receipt-state-authority'].includes(scenario.mode) ? 'fixture-foreign-token' : fake;
     const receipt = { version: 1, repository: repo, head, workflow: currentProtocol().workflow, sourceRepository: entry.repo, sourceCommit: entry.commit, runID: runID(), runAttempt: 1, job: currentProtocol().job, tokenSHA256: createHash('sha256').update(value).digest('hex') };
     if (recovery()) Object.assign(receipt, { kind: 'current-secret-value', originalBindingSHA256: scenario.originalBindingSHA256, originalHead: 'd'.repeat(40), originalWorkflowSHA256: createHash('sha256').update(workflow).digest('hex'), originalRunID: 91001, originalRunAttempt: 1 });
     if (scenario.mode === 'late-foreign' || scenario.mode === 'receipt-late-metadata') scenario.secret.updated_at = '2099-01-01T00:00:00Z';
     if (scenario.mode === 'receipt-original-changed') writeFileSync(join(scenario.originalDirectory, 'operation.json'), '{}', { mode: 0o600 });
     if (scenario.mode === 'receipt-current-head-changed') scenario.headChanged = true;
     if (scenario.mode === 'receipt-binding-changed') writeFileSync(scenario.bindingFile, '{}');
+    if (scenario.mode === 'receipt-state-authority') {
+      const file = join(scenario.operation, 'operation.json'), state = JSON.parse(readFileSync(file));
+      state.tokenSHA256 = createHash('sha256').update(value).digest('hex');
+      writeFileSync(file, JSON.stringify(state), { mode: 0o600 });
+    }
     res.writeHead(200, { 'content-type': 'text/plain' });
     const marker = 'timestamp ' + currentProtocol().marker + JSON.stringify(receipt) + '\n';
     return res.end(['missing-receipt', 'receipt-missing'].includes(scenario.mode) ? 'no ownership receipt\n' : ['ambiguous-receipt', 'receipt-duplicate'].includes(scenario.mode) ? marker + marker : marker);
@@ -205,7 +211,8 @@ async function execute(mode, name) {
     const originalBinding = { repository: repo, sourceRepository: entry.repo, sourceCommit: entry.commit, sourceLimitsBlob: entry.limits, requiredCIRunID: 38939673060, requiredCIAttempt: 1, head: 'd'.repeat(40), workflowSHA256: createHash('sha256').update(workflow).digest('hex'), helperDeliveryRef: 'fixture://original-helper' };
     const bytes = JSON.stringify(originalBinding); writeFileSync(scenario.originalBindingFile, bytes, { mode: 0o600 });
     scenario.originalBindingSHA256 = createHash('sha256').update(bytes).digest('hex');
-    const originalState = { version: 1, bindingSHA256: scenario.originalBindingSHA256, repository: repo, sourceRepository: entry.repo, sourceCommit: entry.commit, sourceLimitsBlob: entry.limits, head: originalBinding.head, workflow: qualification.workflow, secret: 'MODS_SOURCE_READ_TOKEN', tokenSHA256: createHash('sha256').update(fake).digest('hex'), secretOwned: { ...scenario.secret }, custody: { repository: repo, kind: 'native-repository-delivery-lease' }, activeCommand: null, controllerExit: 1, controllerEndedAt: now(), setAttemptedAt: now(), dispatchAttemptedAt: now(), run: { id: 91001, attempt: 1, repository: repo, head: originalBinding.head, workflow: qualification.workflow, event: 'workflow_dispatch', status: 'completed', conclusion: 'cancelled' }, primaryError: { phase: 'fixture-original-failure' } };
+    scenario.originalCreatedAt = now();
+    const originalState = { version: 1, bindingSHA256: scenario.originalBindingSHA256, repository: repo, sourceRepository: entry.repo, sourceCommit: entry.commit, sourceLimitsBlob: entry.limits, head: originalBinding.head, workflow: qualification.workflow, secret: 'MODS_SOURCE_READ_TOKEN', tokenSHA256: createHash('sha256').update(fake).digest('hex'), secretOwned: { ...scenario.secret }, custody: { repository: repo, kind: 'native-repository-delivery-lease' }, activeCommand: null, controllerExit: 1, controllerEndedAt: scenario.originalCreatedAt, setAttemptedAt: scenario.originalCreatedAt, dispatchAttemptedAt: scenario.originalCreatedAt, beforeRunIDs: [], run: { id: 91001, attempt: 1, repository: repo, head: originalBinding.head, workflow: qualification.workflow, event: 'workflow_dispatch', status: 'completed', conclusion: 'cancelled', createdAt: scenario.originalCreatedAt }, primaryError: { phase: 'fixture-original-failure' } };
     scenario.originalBytes = JSON.stringify(originalState);
     writeFileSync(join(scenario.originalDirectory, 'operation.json'), scenario.originalBytes, { mode: 0o600 });
     scenario.originalOperationSHA256 = createHash('sha256').update(scenario.originalBytes).digest('hex');
@@ -244,7 +251,7 @@ async function execute(mode, name) {
   return { code, output, operation, state: existsSync(statePath) ? JSON.parse(readFileSync(statePath, 'utf8')) : null };
 }
 try {
-  for (const name of ['success204', 'publication', 'wrong-run', 'watch-transport', 'failure', 'preexisting', 'foreign', 'recover', 'wrong-source', 'wrong-pin', 'short-lifetime', 'moved-head', 'changed-workflow', 'stale-source', 'unrelated-ci', 'arbitrary-gh', 'lease-busy', 'custody-lost', 'same-second-foreign', 'late-foreign', 'missing-receipt', 'ambiguous-receipt']) {
+  for (const name of ['success204', 'publication', 'wrong-run', 'prior-handle', 'watch-transport', 'failure', 'preexisting', 'foreign', 'recover', 'wrong-source', 'wrong-pin', 'short-lifetime', 'moved-head', 'changed-workflow', 'stale-source', 'unrelated-ci', 'arbitrary-gh', 'lease-busy', 'custody-lost', 'same-second-foreign', 'late-foreign', 'missing-receipt', 'ambiguous-receipt']) {
     scenario = { mode: name, secret: name === 'preexisting' ? { name: 'MODS_SOURCE_READ_TOKEN', created_at: '2020-01-01T00:00:00Z', updated_at: '2020-01-01T00:00:00Z' } : null, status: 'completed', conclusion: name === 'failure' ? 'failure' : 'success', sets: 0, deletes: 0, dispatches: 0, cancels: 0, calls: [], unknown: [] };
     let result = await execute('operate', name);
     if (name === 'recover') { assert.equal(scenario.nativeArgvExcludesToken, true, 'recovery interruption requires the recorded live watch command and token-free argv'); assert.equal(result.code, 'SIGKILL'); result = await execute('recover', name); assert.equal(scenario.cancels, 1); }
@@ -254,16 +261,17 @@ try {
     assert.equal(result.code, expected, name);
     const refused = ['preexisting', 'wrong-source', 'wrong-pin', 'short-lifetime', 'moved-head', 'changed-workflow', 'stale-source', 'unrelated-ci', 'arbitrary-gh', 'lease-busy', 'custody-lost'].includes(name);
     assert.equal(scenario.dispatches, refused ? 0 : 1, 'one native dispatch, including empty204');
-    assert.equal(scenario.deletes, refused || ['wrong-run', 'foreign', 'same-second-foreign', 'late-foreign', 'missing-receipt', 'ambiguous-receipt'].includes(name) ? 0 : 1, 'only owned secret deleted');
+    assert.equal(scenario.deletes, refused || ['wrong-run', 'prior-handle', 'foreign', 'same-second-foreign', 'late-foreign', 'missing-receipt', 'ambiguous-receipt'].includes(name) ? 0 : 1, 'only owned secret deleted');
     if (refused) assert.equal(scenario.sets, 0, 'refusal precedes secret mutation');
     assert.equal(scenario.unknown.length, 0, 'all native endpoints bound: ' + JSON.stringify(scenario.unknown));
     assert.ok(!JSON.stringify(result.state).includes(fake), 'no token persisted in operation metadata');
     if (name === 'watch-transport') { assert.equal(result.state.watch.code, 1); assert.equal(result.state.run.conclusion, 'success'); }
     if (name === 'publication') { assert.ok(result.state.firstRunIdentityMismatch.fields.some(v => v.field === 'display_title')); assert.ok(!JSON.stringify(result.state).includes('fixture-private-pending-title')); assert.equal(scenario.cancels, 0); }
     if (name === 'wrong-run') { assert.equal(scenario.cancels, 0); assert.ok(result.state.firstRunIdentityMismatch.fields.some(v => v.field === 'repository')); }
+    if (name === 'prior-handle') { assert.equal(scenario.cancels, 0); assert.ok(result.state.firstRunIdentityMismatch.fields.some(v => v.field === 'dispatch_baseline')); }
     proof.push({ name, exit: result.code, sets: scenario.sets, dispatches: scenario.dispatches, deletes: scenario.deletes, cancels: scenario.cancels, nativeCalls: scenario.calls, state: join(result.operation, 'operation.json') });
   }
-  for (const name of ['receipt-success', 'receipt-resume', 'receipt-foreign-value', 'receipt-missing', 'receipt-duplicate', 'receipt-absent', 'receipt-metadata-changed', 'receipt-late-metadata', 'receipt-original-binding', 'receipt-original-changed', 'receipt-original-active', 'receipt-original-workflow', 'receipt-current-workflow', 'receipt-current-head-changed', 'receipt-binding-changed']) {
+  for (const name of ['receipt-success', 'receipt-resume', 'receipt-foreign-value', 'receipt-state-authority', 'receipt-missing', 'receipt-duplicate', 'receipt-absent', 'receipt-metadata-changed', 'receipt-late-metadata', 'receipt-original-binding', 'receipt-original-changed', 'receipt-original-active', 'receipt-original-workflow', 'receipt-current-workflow', 'receipt-current-head-changed', 'receipt-binding-changed']) {
     scenario = { kind: receiptRecovery.kind, mode: name, secret: { name: 'MODS_SOURCE_READ_TOKEN', created_at: '2026-11-13T23:59:18Z', updated_at: '2026-11-13T23:59:18Z' }, setAt: Date.now() - 2_000, status: 'completed', conclusion: 'success', sets: 0, deletes: 0, dispatches: 0, cancels: 0, calls: [], unknown: [] };
     let result = await execute('receipt-recover', name);
     if (name === 'receipt-resume') {

@@ -10,11 +10,22 @@ export const positiveID = value => Number.isSafeInteger(value) && value > 0;
 export function inspectRunIdentity(run, { id, repository, head, source, protocol }) {
   const expected = { id, repository, head_sha: head, head_branch: 'main', event: 'workflow_dispatch', path: protocol.workflow, run_attempt: 1, display_title: `${protocol.title}: ${source}` };
   const actual = { ...run, repository: run?.repository?.full_name };
-  return Object.entries(expected).filter(([field, value]) => actual[field] !== value || (field === 'id' && !positiveID(value))).map(([field, value]) => {
-    const observed = actual[field];
-    const encoded = observed === undefined ? 'undefined' : JSON.stringify(observed);
-    return { field, present: observed !== undefined && observed !== null, type: observed === null ? 'null' : typeof observed, bytes: Buffer.byteLength(encoded), actualSHA256: sha256(encoded), expectedSHA256: sha256(value === undefined ? 'undefined' : JSON.stringify(value)) };
-  });
+  return Object.entries(expected).filter(([field, value]) => actual[field] !== value || (field === 'id' && !positiveID(value))).map(([field, value]) => mismatch(field, actual[field], value));
+}
+
+function mismatch(field, observed, expected) {
+  const encoded = observed === undefined ? 'undefined' : JSON.stringify(observed);
+  return { field, present: observed !== undefined && observed !== null, type: observed === null ? 'null' : typeof observed, bytes: Buffer.byteLength(encoded), actualSHA256: sha256(encoded), expectedSHA256: sha256(expected === undefined ? 'undefined' : JSON.stringify(expected)) };
+}
+
+export function inspectDispatchOwnership(run, { beforeRunIDs, attemptedAt, createdAt }) {
+  const fields = [];
+  if (!Array.isArray(beforeRunIDs) || !beforeRunIDs.every(positiveID) || beforeRunIDs.includes(run?.id)) fields.push(mismatch('dispatch_baseline', run?.id, 'not-in-recorded-baseline'));
+  const lower = Math.floor(Date.parse(attemptedAt) / 1000) * 1000;
+  const observed = Date.parse(run?.created_at);
+  if (!Number.isFinite(lower) || !Number.isFinite(observed) || observed < lower) fields.push(mismatch('dispatch_created_at', run?.created_at, lower));
+  if (createdAt && run?.created_at !== createdAt) fields.push(mismatch('immutable_created_at', run?.created_at, createdAt));
+  return fields;
 }
 
 export function admittedRun(run, target) {

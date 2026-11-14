@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { qualification, receiptRecovery, inspectRunIdentity, admittedRun, sha256, verifyReceipt } from './private-source-protocol.mjs';
+import { qualification, receiptRecovery, inspectRunIdentity, inspectDispatchOwnership, admittedRun, sha256, verifyReceipt } from './private-source-protocol.mjs';
 
 const target = { id: 91, repository: 'moabualruz/rice-mods', head: 'a'.repeat(40), source: 'moabualruz/rice-session-accounts', protocol: qualification };
 const native = { id: 91, repository: { full_name: target.repository }, head_sha: target.head, head_branch: 'main', event: 'workflow_dispatch', path: qualification.workflow, run_attempt: 1, display_title: `${qualification.title}: ${target.source}`, status: 'completed', conclusion: 'success', created_at: '2026-11-14T00:00:00Z', updated_at: '2026-11-14T00:00:01Z' };
@@ -28,4 +28,12 @@ test('receipt equality refuses missing, foreign and additional fields', () => {
   const expected = { version: 1, runID: 91, runAttempt: 1, tokenSHA256: sha256('fixture-current-value') };
   verifyReceipt({ ...expected }, expected);
   for (const value of [{ ...expected, runAttempt: 2 }, { ...expected, tokenSHA256: sha256('fixture-foreign-value') }, { ...expected, extra: true }, { ...expected, runID: undefined }]) assert.throws(() => verifyReceipt(value, expected), /receipt mismatch/);
+});
+
+test('native handles must be new since the recorded dispatch intent', () => {
+  const scope = { beforeRunIDs: [11, 12], attemptedAt: '2026-11-13T23:59:59Z', createdAt: native.created_at };
+  assert.deepEqual(inspectDispatchOwnership(native, scope), []);
+  assert.equal(inspectDispatchOwnership(native, { ...scope, beforeRunIDs: [91] })[0].field, 'dispatch_baseline');
+  assert.equal(inspectDispatchOwnership({ ...native, created_at: '2026-11-13T00:00:00Z' }, scope)[0].field, 'dispatch_created_at');
+  assert.equal(inspectDispatchOwnership({ ...native, created_at: '2026-11-14T00:00:02Z' }, scope)[0].field, 'immutable_created_at');
 });
