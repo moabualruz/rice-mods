@@ -1,6 +1,8 @@
 apiVersion: vendir.k14s.io/v1alpha1
 kind: Config
 minimumRequiredVersion: 0.40.0
+# rice-release is private. Supply GH_TOKEN from OpenBao as a read-only credential scoped to
+# moabualruz/rice-release; keep credential values out of this file.
 directories:
   - path: release-packages
     contents:
@@ -20,5 +22,6 @@ directories:
           url: https://github.com/moabualruz/rice-release.git
           ref: templates-v0.3.8
         includePaths:
-          - templates/fetch/**/*
+          - templates/fetch/LICENSE
+          - templates/fetch/fetch-asset.sh
         newRootPath: templates/fetch
