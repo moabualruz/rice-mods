@@ -30,6 +30,8 @@ Run the two source operations serially. The launcher holds a destination-wide lo
 
 The controller verifies the private repository, exact main head, critical local file bytes and modes against that immutable remote Git tree, workflow digest, exact ordinary CI identity and attempt, source pin, and absent `MODS_SOURCE_READ_TOKEN` baseline before changing destination state. It supplies the token only to native `gh secret set` through stdin, waits beyond the set timestamp second, dispatches once with explicit source/head/expiry inputs, and records only decoded nonsecret operation and runner metadata. Workflow jobs receive the token only for the required selected-source check. Extraction and validation run without credential variables.
 
+Run metadata can be incomplete just after dispatch. The controller permits at most seven identity observations within ten seconds after a candidate appears, while still requiring every exact repository, run, head, branch, event, workflow, attempt and title predicate. A handle must also be absent from the recorded pre-dispatch inventory and created after its dispatch intent, including handles returned directly by native `gh`. Its creation time remains immutable after admission. The controller records the first mismatch and a bounded recent history using predicate names, presence, type, length and hashes. Arbitrary provider strings are not copied into those records. An unproven or foreign run is never cancelled.
+
 The trusted source step emits a SHA256 comparison receipt for its received token, bound to the exact repository, head, workflow, source commit, run, job and attempt. The token value is never logged. Cleanup uses the attempt-specific native job endpoint, verifies run/head/job identity and reads bounded native job logs into memory. It requires exactly one matching receipt, then rechecks secret metadata under live repository custody. Missing, mismatched or ambiguous receipts preserve the secret and return nonzero. Neither the fingerprint nor metadata equality is presented as an atomic GitHub compare-and-delete operation.
 
 ## Recover an interrupted operation
@@ -39,7 +41,42 @@ The launcher first stops only its retained native PID and birth identity, then i
 If automatic recovery is interrupted, retain the binding, operation records, and writer custody. Use the same delivered source and existing operator credential store:
 
 ```sh
-mise exec node@24.18.0 -- node scripts/private-source-controller.mjs recover /absolute/binding.json /absolute/owned-operation
+/opt/mise/installs/node/24.18.0/bin/node scripts/private-source-controller.mjs recover /absolute/binding.json /absolute/owned-operation
 ```
 
 Recovery failure stays nonzero and retains its failure phase and fingerprints. Do not repeat the dispatch or substitute an expired static secret. A successful controller run proves its exact selected-source workflow only; it does not imply model turns, native runtime qualification, packaging, signing, publishing, or unrelated acceptance.
+
+## Recover a missing secret receipt without minting
+
+If the original workflow ended before its source-check step, its token receipt does not exist. Keep that failed operation immutable. A separate receipt recovery uses the current delivered controller and the main-only `Private source receipt recovery` workflow. Its two steps validate context and hash the current secret. It has no token permissions, checkout, actions, runtime installation or source download. The secret reaches only native Bash and the hash command through stdin; no value is written to files, arguments or logs.
+
+Create a fresh nonsecret recovery binding with these fields:
+
+| Field | Required binding |
+| --- | --- |
+| `repository` | `moabualruz/rice-mods` |
+| `sourceRepository`, `sourceCommit`, `sourceLimitsBlob` | The original exact source, still declared by the marketplace and private allowlist |
+| `head` | Exact current delivered main |
+| `workflowSHA256` | SHA256 of the current `.github/workflows/private-source-receipt.yml` |
+| `requiredCIRunID`, `requiredCIAttempt` | Successful ordinary main-push CI for that current head |
+| `originalBindingSHA256` | SHA256 of the original binding file |
+| `originalOperationSHA256` | SHA256 of the frozen original `operation.json` |
+
+The original binding and state must remain owned and private. Their source, secret acknowledgement, issuer fingerprint, terminal failed operation and exact original run are checked. Their original workflow bytes are verified against its immutable head. A current repository lease and local lock cover the new operation. The receipt binds both the original context and the current trusted workflow, head, run, attempt and source. Exactly one authentic successful job receipt must match the fingerprint taken from the immutable original, not a mutable recovery copy. Current trusted delivery, secret metadata and both original file hashes are checked again before deletion. Missing, conflicting, changed or ambiguous evidence preserves the secret and returns nonzero; timestamp equality alone never grants ownership.
+
+Use a new private recovery directory:
+
+```sh
+bash scripts/private-source-qualification.sh --receipt-recovery \
+  /absolute/current-recovery-binding.json /absolute/new-recovery-operation \
+  /absolute/original-binding.json /absolute/original-operation
+```
+
+This mode cannot invoke Bao or the issuer and never creates or replaces a token. It leaves the original failed operation unchanged. Its recovery result is not source qualification. Resume only the existing receipt run with the same binding and directory:
+
+```sh
+bash scripts/private-source-qualification.sh --resume-receipt \
+  /absolute/current-recovery-binding.json /absolute/existing-recovery-operation
+```
+
+Resume obtains fresh custody, preserves prior logs and never dispatches another run. It can stop only the recorded native command PID and birth identity, then observe the already-owned receipt workflow. Any incomplete cleanup remains nonzero. A later source qualification is a new normal operation with its own current binding, issuer session and one dispatch.
