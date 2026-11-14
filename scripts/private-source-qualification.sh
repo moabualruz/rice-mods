@@ -12,7 +12,7 @@ if [ "${1:-}" = --receipt-recovery ]; then
   mode=receipt-recover
   shift
 elif [ "${1:-}" = --resume-receipt ]; then
-  [ "$#" -eq 3 ] || { echo 'usage: private-source-qualification.sh --resume-receipt CURRENT_BINDING EXISTING_RECOVERY_OPERATION' >&2; exit 64; }
+  [ "$#" -eq 4 ] || { echo 'usage: private-source-qualification.sh --resume-receipt RECEIPT_BINDING EXISTING_RECOVERY_OPERATION CURRENT_READER_DELIVERY' >&2; exit 64; }
   mode=recover
   resume=true
   shift
@@ -24,6 +24,11 @@ binding=$1
 operation=$2
 original_binding=${3:-}
 original_operation=${4:-}
+reader_delivery=
+if [ "$resume" = true ]; then
+  reader_delivery=${3:-}
+  case "$reader_delivery" in /*) ;; *) echo 'reader delivery binding path must be absolute' >&2; exit 64 ;; esac
+fi
 case "$binding" in /*) ;; *) echo 'binding path must be absolute' >&2; exit 64 ;; esac
 case "$operation" in /*) ;; *) echo 'operation path must be absolute' >&2; exit 64 ;; esac
 if [ "$mode" = receipt-recover ]; then
@@ -123,7 +128,9 @@ recover() {
   if [ -f "$operation/operation.json" ]; then
     cleanup_log=$(/usr/bin/mktemp "$operation/cleanup-command.XXXXXXXX") || cleanup=1
     if [ "$cleanup" -eq 0 ]; then
-      "$timeout" --signal=TERM --kill-after=5s 3m "$node" "$here/private-source-controller.mjs" recover "$binding" "$operation" > "$cleanup_log" 2>&1 || cleanup=$?
+      cleanup_args=(recover "$binding" "$operation")
+      if [ -n "$reader_delivery" ]; then cleanup_args+=("$reader_delivery"); fi
+      "$timeout" --signal=TERM --kill-after=5s 3m "$node" "$here/private-source-controller.mjs" "${cleanup_args[@]}" > "$cleanup_log" 2>&1 || cleanup=$?
     fi
   fi
   /usr/bin/jq -n --arg ended "$(/bin/date -u +%FT%TZ)" --arg cleanupLog "$cleanup_log" --argjson exit "$status" --argjson cleanup "$cleanup" '{endedAt:$ended,launcherExit:$exit,recoveryExit:$cleanup,cleanupLog:$cleanupLog,scope:"Owned controller closeout, no native product qualification inferred"}' > "$terminal_file"
@@ -137,7 +144,7 @@ trap 'exit 143' TERM
 if [ "$mode" = receipt-recover ]; then
   "$timeout" --signal=TERM --kill-after=15s 17m "$node" "$here/private-source-controller.mjs" receipt-recover "$binding" "$operation" "$original_binding" "$original_operation" > "$command_log" 2>&1 &
 elif [ "$mode" = recover ]; then
-  "$timeout" --signal=TERM --kill-after=15s 17m "$node" "$here/private-source-controller.mjs" recover "$binding" "$operation" > "$command_log" 2>&1 &
+  "$timeout" --signal=TERM --kill-after=15s 17m "$node" "$here/private-source-controller.mjs" recover "$binding" "$operation" "$reader_delivery" > "$command_log" 2>&1 &
 else
   # Native timeout forwards cancellation to the owned helper group; its defer revokes the token.
   "$timeout" --signal=TERM --kill-after=15s 17m /bin/bash "$operator" -- "$helper" github with-contents-read --repo "$source_repository" --timeout 15m --app-id 4018471 --key bao://kv/homelab/rice-observe-app#private-key -- "$node" "$here/private-source-controller.mjs" operate "$binding" "$operation" > "$operation/helper-command.log" 2>&1 &

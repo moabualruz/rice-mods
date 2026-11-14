@@ -52,6 +52,7 @@ test('receipt-only launcher never resolves or invokes an issuer', { skip: proces
   writeFileSync(receiver, `#!/bin/bash
 set -eu
 test -z "\${GH_TOKEN+x}\${GITHUB_TOKEN+x}\${MISE_GITHUB_TOKEN+x}\${RICE_RELEASE_DOWNLOAD_TOKEN+x}\${RICE_RELEASE_DOWNLOAD_TOKEN_EXPIRES_AT+x}"
+if [ "$2" = recover ]; then test "$5" = '${join(root, 'reader-delivery.json')}'; fi
 out=$(/usr/bin/readlink "/proc/$$/fd/1")
 ready=
 case "$out" in
@@ -68,6 +69,7 @@ printf '%s\\n' "$2" >> '${marker}'
   const pin = path => ({ path, sha256: sha256(readFileSync(path)) });
   writeFileSync(join(scripts, 'private-source-host.json'), JSON.stringify({ version: 1, platform: 'linux', architecture: 'x64', executables: { gh: pin(gh), node: pin(receiver), timeout: pin('/usr/bin/timeout') } }));
   const binding = join(root, 'binding.json'); writeFileSync(binding, JSON.stringify({ sourceRepository: env.SOURCE_REPOSITORY }));
+  const readerDelivery = join(root, 'reader-delivery.json'); writeFileSync(readerDelivery, '{}');
   const operation = join(root, 'operation');
   const result = spawnSync('/bin/bash', [join(scripts, 'private-source-qualification.sh'), '--receipt-recovery', binding, operation, join(root, 'original-binding.json'), join(root, 'original-operation')], { env: { ...process.env, XDG_STATE_HOME: root, GH_TOKEN: 'fixture-gh', GITHUB_TOKEN: 'fixture-github', MISE_GITHUB_TOKEN: 'fixture-mise', RICE_RELEASE_DOWNLOAD_TOKEN: 'fixture-source', RICE_RELEASE_DOWNLOAD_TOKEN_EXPIRES_AT: 'fixture-expiry' }, encoding: 'utf8' });
   assert.equal(result.status, 0, result.stderr);
@@ -78,7 +80,10 @@ printf '%s\\n' "$2" >> '${marker}'
   assert.ok(!('helperSHA256' in start));
   const originalStart = readFileSync(join(operation, 'launcher-start.json'), 'utf8');
   writeFileSync(join(operation, 'operation.json'), JSON.stringify({ kind: 'receipt-recovery' }), { mode: 0o600 });
-  const resumed = spawnSync('/bin/bash', [join(scripts, 'private-source-qualification.sh'), '--resume-receipt', binding, operation], { env: { ...process.env, XDG_STATE_HOME: root }, encoding: 'utf8' });
+  const missingReader = spawnSync('/bin/bash', [join(scripts, 'private-source-qualification.sh'), '--resume-receipt', binding, operation], { env: { ...process.env, XDG_STATE_HOME: root }, encoding: 'utf8' });
+  assert.equal(missingReader.status, 64);
+  assert.equal(readFileSync(marker, 'utf8'), 'receipt-recover\n');
+  const resumed = spawnSync('/bin/bash', [join(scripts, 'private-source-qualification.sh'), '--resume-receipt', binding, operation, readerDelivery], { env: { ...process.env, XDG_STATE_HOME: root }, encoding: 'utf8' });
   assert.equal(resumed.status, 0, resumed.stderr);
   assert.equal(readFileSync(marker, 'utf8'), 'receipt-recover\nrecover\nrecover\n');
   assert.equal(readFileSync(join(operation, 'launcher-start.json'), 'utf8'), originalStart);

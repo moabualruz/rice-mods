@@ -28,6 +28,7 @@ const ghSHA256 = createHash('sha256').update(readFileSync(gh)).digest('hex');
 const repo = 'moabualruz/rice-mods';
 const head = 'a'.repeat(40);
 const fake = 'fixture-owned-installation-token';
+const privateLogSentinel = 'fixture-private-job-log-sentinel';
 const tracked = execFileSync('git', ['ls-files', '-z'], { cwd: join(root, '..'), encoding: 'utf8' }).split('\0').filter(Boolean);
 const blobs = execFileSync('git', ['hash-object', '--stdin-paths'], { cwd: join(root, '..'), input: tracked.join('\n') + '\n', encoding: 'utf8' }).trim().split('\n');
 const sourceTree = tracked.map((path, index) => ({ path, type: 'blob', mode: lstatSync(join(root, '..', path)).mode & 0o111 ? '100755' : '100644', sha: blobs[index] }));
@@ -36,7 +37,7 @@ const lostCustody = join(target, 'lost-custody');
 const harness = join(target, 'harness.mjs');
 writeFileSync(harness, `import { runPrivateSourceController } from ${JSON.stringify(pathToFileURL(join(root, 'private-source-controller.mjs')).href)};
 import { appendFileSync, existsSync } from 'node:fs';
-const [, , mode, bindingFile, directory, originalBindingFile, originalDirectory] = process.argv;
+const [, , mode, bindingFile, directory, originalBindingFile, originalDirectory, readerDeliveryFile] = process.argv;
 const withDeliveryLease = async ({ repository, run }) => {
   if (process.env.MISE_GITHUB_TOKEN) throw Error('fixture inherited mise credential');
   if (repository !== 'moabualruz/rice-mods' || process.env.FIXTURE_MODE === 'lease-busy') throw Error('fixture custody refused');
@@ -46,7 +47,7 @@ const withDeliveryLease = async ({ repository, run }) => {
     appendFileSync(process.env.FIXTURE_CUSTODY_LOG, 'held\\n');
   } }); } finally { appendFileSync(process.env.FIXTURE_CUSTODY_LOG, 'release\\n'); }
 };
-try { process.exitCode = await runPrivateSourceController({ mode, bindingFile, directory, originalBindingFile, originalDirectory, withDeliveryLease, nativeGH: ${JSON.stringify({path:gh,sha256:ghSHA256})} }); }
+try { process.exitCode = await runPrivateSourceController({ mode, bindingFile, directory, originalBindingFile, originalDirectory, readerDeliveryFile, withDeliveryLease, nativeGH: ${JSON.stringify({path:gh,sha256:ghSHA256})} }); }
 catch { process.exitCode = 1; }
 `);
 let scenario;
@@ -55,6 +56,7 @@ const recovery = () => scenario.kind === receiptRecovery.kind;
 const currentProtocol = () => recovery() ? receiptRecovery : qualification;
 const runID = () => recovery() ? 92001 : 91001;
 const jobID = () => recovery() ? 92101 : 91101;
+const deliveredHead = () => scenario.readerActive ? 'e'.repeat(40) : head;
 const run = () => ({ id: runID(), repository: { full_name: repo }, head_sha: head, head_branch: 'main', event: 'workflow_dispatch', path: currentProtocol().workflow, status: scenario.status, conclusion: scenario.conclusion, created_at: scenario.dispatchedAt || now(), updated_at: now(), html_url: `https://github.com/${repo}/actions/runs/${runID()}`, workflow_id: 123, name: currentProtocol().title, display_title: `${currentProtocol().title}: ${entry.repo}`, run_number: 1, run_attempt: 1, jobs_url: `https://fixture.invalid/repos/${repo}/actions/runs/${runID()}/jobs`, check_suite_id: 44 });
 const originalRun = () => ({ ...run(), id: 91001, head_sha: 'd'.repeat(40), path: qualification.workflow, status: scenario.mode === 'receipt-original-active' ? 'in_progress' : 'completed', conclusion: 'cancelled', display_title: `${qualification.title}: ${entry.repo}`, created_at: scenario.originalCreatedAt });
 const server = createServer({ key, cert: readFileSync(certFile) }, async (req, res) => {
@@ -69,13 +71,17 @@ const server = createServer({ key, cert: readFileSync(certFile) }, async (req, r
   if (req.method !== 'GET') assert.match(readFileSync(custodyLog, 'utf8'), /held\n$/);
   const json = (status, value) => { res.writeHead(status, { 'content-type': 'application/json', 'x-github-request-id': 'FIXTURE' }); res.end(value === undefined ? undefined : JSON.stringify(value)); };
   if (path === '/meta') return json(200, { installed_version: '3.20.0' });
-  if (path === `/repos/${repo}`) return json(200, { id: 77, full_name: repo, name: 'rice-mods', owner: { login: 'moabualruz' }, private: true, default_branch: 'main', permissions: { admin: true } });
-  if (path === `/repos/${repo}/git/ref/heads/main`) return json(200, { object: { sha: scenario.mode === 'moved-head' || scenario.headChanged ? 'b'.repeat(40) : head } });
-  if (path === `/repos/${repo}/git/commits/${head}`) return json(200, { sha: head, tree: { sha: 'c'.repeat(40) } });
+  if (path === `/repos/${repo}`) {
+    if (scenario.readerActive && scenario.mode === 'receipt-reader-old-binding-changed') writeFileSync(scenario.bindingFile, '{}');
+    if (scenario.readerActive && scenario.mode === 'receipt-reader-delivery-changed') writeFileSync(scenario.readerDeliveryFile, '{}');
+    return json(200, { id: 77, full_name: repo, name: 'rice-mods', owner: { login: 'moabualruz' }, private: true, default_branch: 'main', permissions: { admin: true } });
+  }
+  if (path === `/repos/${repo}/git/ref/heads/main`) return json(200, { object: { sha: scenario.mode === 'moved-head' || scenario.headChanged ? 'b'.repeat(40) : deliveredHead() } });
+  if (path === `/repos/${repo}/git/commits/${deliveredHead()}`) return json(200, { sha: deliveredHead(), tree: { sha: 'c'.repeat(40) } });
   if (path === `/repos/${repo}/git/trees/${'c'.repeat(40)}`) return json(200, { truncated: false, tree: sourceTree.map(value => scenario.mode === 'stale-source' && value.path === 'scripts/plugin-source-check.sh' ? { ...value, sha: 'b'.repeat(40) } : value) });
   if (path.endsWith('/contents/' + qualification.workflow)) return json(200, { encoding: 'base64', content: (scenario.mode === 'changed-workflow' || scenario.mode === 'receipt-original-workflow' ? Buffer.from('different workflow') : workflow).toString('base64') });
   if (path.endsWith('/contents/' + receiptRecovery.workflow)) return json(200, { encoding: 'base64', content: (scenario.mode === 'receipt-current-workflow' ? Buffer.from('different workflow') : receiptWorkflow).toString('base64') });
-  if (path.endsWith('/actions/runs/38939673060')) return json(200, { head_sha: head, repository: { full_name: repo }, status: 'completed', conclusion: 'success', name: scenario.mode === 'unrelated-ci' ? 'Security' : 'CI', path: scenario.mode === 'unrelated-ci' ? '.github/workflows/security.yml' : '.github/workflows/ci.yml', event: 'push', head_branch: 'main', run_attempt: 1, workflow_id: 456 });
+  if (path.endsWith('/actions/runs/38939673060') || path.endsWith('/actions/runs/38939673061')) return json(200, { head_sha: path.endsWith('/38939673061') ? 'e'.repeat(40) : head, repository: { full_name: repo }, status: 'completed', conclusion: 'success', name: scenario.mode === 'unrelated-ci' ? 'Security' : 'CI', path: scenario.mode === 'unrelated-ci' ? '.github/workflows/security.yml' : '.github/workflows/ci.yml', event: 'push', head_branch: 'main', run_attempt: 1, workflow_id: 456 });
   if (path.endsWith('/actions/workflows/ci.yml')) return json(200, { id: 456, name: 'CI', path: '.github/workflows/ci.yml' });
   if (path.endsWith('/actions/secrets')) return json(200, { total_count: scenario.secret ? 1 : 0, secrets: scenario.secret ? [scenario.secret] : [] });
   if (path.endsWith('/actions/secrets/public-key')) return json(200, { key_id: '123', key: seal });
@@ -134,7 +140,8 @@ const server = createServer({ key, cert: readFileSync(certFile) }, async (req, r
     }
     res.writeHead(200, { 'content-type': 'text/plain' });
     const marker = 'timestamp ' + currentProtocol().marker + JSON.stringify(receipt) + '\n';
-    return res.end(['missing-receipt', 'receipt-missing'].includes(scenario.mode) ? 'no ownership receipt\n' : ['ambiguous-receipt', 'receipt-duplicate'].includes(scenario.mode) ? marker + marker : marker);
+    const body = scenario.readerPending || ['missing-receipt', 'receipt-missing'].includes(scenario.mode) ? 'no ownership receipt\n' : ['ambiguous-receipt', 'receipt-duplicate'].includes(scenario.mode) ? marker + marker : marker;
+    return res.end('\x1b[32m' + privateLogSentinel + '\x1b[0m\n' + body);
   }
   if (path.endsWith('/actions/runs/' + runID() + '/cancel')) { scenario.cancels++; scenario.status = 'completed'; scenario.conclusion = 'cancelled'; return json(202); }
   if (path === '/graphql' || path === '/api/graphql') return json(200, { data: {} });
@@ -220,11 +227,17 @@ async function execute(mode, name) {
     if (scenario.mode === 'receipt-absent') scenario.secret = null;
   }
   const bound = { repository: repo, sourceRepository: scenario.mode === 'wrong-source' ? 'owner/unknown' : entry.repo, sourceCommit: scenario.mode === 'wrong-pin' ? 'b'.repeat(40) : entry.commit, sourceLimitsBlob: entry.limits, requiredCIRunID: 38939673060, requiredCIAttempt: 1, head, workflowSHA256: createHash('sha256').update(recovery() ? receiptWorkflow : workflow).digest('hex'), ...(recovery() ? { originalBindingSHA256: scenario.mode === 'receipt-original-binding' ? 'f'.repeat(64) : scenario.originalBindingSHA256, originalOperationSHA256: scenario.originalOperationSHA256 } : { helperDeliveryRef: 'fixture://helper' }), ...(scenario.mode === 'arbitrary-gh' ? { gh: '/untrusted/recipient' } : {}) };
-  writeFileSync(bindingFile, JSON.stringify(bound));
+  if (mode === 'recover' && existsSync(bindingFile)) assert.equal(readFileSync(bindingFile, 'utf8'), JSON.stringify(bound), 'resume preserves original receipt binding bytes');
+  else writeFileSync(bindingFile, JSON.stringify(bound));
+  if (scenario.readerActive || scenario.mode === 'reader-normal-override') {
+    scenario.readerDeliveryFile = join(target, name + '-reader-delivery.json');
+    const reader = { repository: repo, head: scenario.mode === 'receipt-reader-head' ? 'f'.repeat(40) : deliveredHead(), requiredCIRunID: scenario.mode === 'receipt-reader-ci' ? 38939673060 : 38939673061, requiredCIAttempt: 1, workflowSHA256: scenario.mode === 'receipt-reader-workflow' ? 'f'.repeat(64) : bound.workflowSHA256, receiptBindingSHA256: scenario.mode === 'receipt-reader-binding' ? 'f'.repeat(64) : createHash('sha256').update(readFileSync(bindingFile)).digest('hex'), ...(scenario.mode === 'receipt-reader-extra' ? { arbitraryAuthority: true } : {}) };
+    writeFileSync(scenario.readerDeliveryFile, JSON.stringify(reader), { mode: 0o600 });
+  }
   const childEnv = { ...env, FIXTURE_MODE: scenario.mode, FIXTURE_CUSTODY_LOG: custodyLog, FIXTURE_CUSTODY_LOST: lostCustody, ...(scenario.mode === 'short-lifetime' ? { RICE_RELEASE_DOWNLOAD_TOKEN_EXPIRES_AT: new Date(Date.now() + 15 * 60_000).toISOString() } : {}) };
   if (recovery()) { delete childEnv.RICE_RELEASE_DOWNLOAD_TOKEN; delete childEnv.RICE_RELEASE_DOWNLOAD_TOKEN_EXPIRES_AT; }
   childEnv.MISE_GITHUB_TOKEN = 'fixture-mise-token';
-  const child = spawn(process.execPath, [harness, mode, bindingFile, operation, ...(recovery() ? [scenario.originalBindingFile, scenario.originalDirectory] : [])], { env: childEnv, stdio: ['ignore', 'pipe', 'pipe'] });
+  const child = spawn(process.execPath, [harness, mode, bindingFile, operation, ...(recovery() ? [scenario.originalBindingFile, scenario.originalDirectory] : ['', '']), ...(scenario.readerDeliveryFile ? [scenario.readerDeliveryFile] : [])], { env: childEnv, stdio: ['ignore', 'pipe', 'pipe'] });
   let output = '';
   child.stdout.on('data', b => { output += b; }); child.stderr.on('data', b => { output += b; });
   let fixtureTimedOut = false;
@@ -247,11 +260,26 @@ async function execute(mode, name) {
   clearTimeout(timeout); clearTimeout(hardStop);
   assert.equal(fixtureTimedOut, false, `${name}/${mode}: native fixture child exceeded its deadline; unknown routes ${JSON.stringify(scenario.unknown)}`);
   assert.ok(!output.includes(fake)); assert.ok(!output.includes(env.GH_TOKEN));
+  assert.ok(!output.includes(privateLogSentinel), 'raw native job logs stay in controller memory');
+  assert.ok(!output.includes('\x1b'), 'native log escape bytes never reach controller output');
   const statePath = join(operation, 'operation.json');
+  if (existsSync(statePath)) assert.ok(!readFileSync(statePath, 'utf8').includes(privateLogSentinel), 'raw logs are not persisted in operation metadata');
   return { code, output, operation, state: existsSync(statePath) ? JSON.parse(readFileSync(statePath, 'utf8')) : null };
 }
 try {
-  for (const name of ['success204', 'publication', 'wrong-run', 'prior-handle', 'watch-transport', 'failure', 'preexisting', 'foreign', 'recover', 'wrong-source', 'wrong-pin', 'short-lifetime', 'moved-head', 'changed-workflow', 'stale-source', 'unrelated-ci', 'arbitrary-gh', 'lease-busy', 'custody-lost', 'same-second-foreign', 'late-foreign', 'missing-receipt', 'ambiguous-receipt']) {
+  scenario = { mode: 'terminal-escape-probe', calls: [], unknown: [] };
+  const guarded = spawn(gh, ['api', `repos/${repo}/actions/jobs/${jobID()}/logs`], { env, stdio: ['ignore', 'pipe', 'pipe'] });
+  let guardedOutput = '';
+  guarded.stdout.on('data', b => { guardedOutput += b; }); guarded.stderr.on('data', b => { guardedOutput += b; });
+  const guardedTimer = setTimeout(() => guarded.kill('SIGKILL'), 10_000);
+  const guardedCode = await new Promise(r => guarded.on('close', r));
+  clearTimeout(guardedTimer);
+  assert.equal(guardedCode, 1, 'native gh refuses ANSI-bearing non-JSON logs without the explicit flag');
+  assert.match(guardedOutput, /the response contains terminal escape sequences/);
+  assert.ok(!guardedOutput.includes(privateLogSentinel));
+  assert.equal(scenario.unknown.length, 0);
+  proof.push({ name: 'native-terminal-escape-refusal', exit: guardedCode, rawLogOutput: false });
+  for (const name of ['success204', 'publication', 'wrong-run', 'prior-handle', 'watch-transport', 'failure', 'preexisting', 'foreign', 'recover', 'wrong-source', 'wrong-pin', 'short-lifetime', 'moved-head', 'changed-workflow', 'stale-source', 'unrelated-ci', 'arbitrary-gh', 'reader-normal-override', 'lease-busy', 'custody-lost', 'same-second-foreign', 'late-foreign', 'missing-receipt', 'ambiguous-receipt']) {
     scenario = { mode: name, secret: name === 'preexisting' ? { name: 'MODS_SOURCE_READ_TOKEN', created_at: '2020-01-01T00:00:00Z', updated_at: '2020-01-01T00:00:00Z' } : null, status: 'completed', conclusion: name === 'failure' ? 'failure' : 'success', sets: 0, deletes: 0, dispatches: 0, cancels: 0, calls: [], unknown: [] };
     let result = await execute('operate', name);
     if (name === 'recover') { assert.equal(scenario.nativeArgvExcludesToken, true, 'recovery interruption requires the recorded live watch command and token-free argv'); assert.equal(result.code, 'SIGKILL'); result = await execute('recover', name); assert.equal(scenario.cancels, 1); }
@@ -259,7 +287,7 @@ try {
     writeFileSync(join(target, name + '-native.json'), JSON.stringify({ scenario, result: { code: result.code, state: result.state } }, null, 2));
     if (result.code !== expected) console.log(JSON.stringify({ name, code: result.code, state: result.state, unknown: scenario.unknown }));
     assert.equal(result.code, expected, name);
-    const refused = ['preexisting', 'wrong-source', 'wrong-pin', 'short-lifetime', 'moved-head', 'changed-workflow', 'stale-source', 'unrelated-ci', 'arbitrary-gh', 'lease-busy', 'custody-lost'].includes(name);
+    const refused = ['preexisting', 'wrong-source', 'wrong-pin', 'short-lifetime', 'moved-head', 'changed-workflow', 'stale-source', 'unrelated-ci', 'arbitrary-gh', 'reader-normal-override', 'lease-busy', 'custody-lost'].includes(name);
     assert.equal(scenario.dispatches, refused ? 0 : 1, 'one native dispatch, including empty204');
     assert.equal(scenario.deletes, refused || ['wrong-run', 'prior-handle', 'foreign', 'same-second-foreign', 'late-foreign', 'missing-receipt', 'ambiguous-receipt'].includes(name) ? 0 : 1, 'only owned secret deleted');
     if (refused) assert.equal(scenario.sets, 0, 'refusal precedes secret mutation');
@@ -290,6 +318,35 @@ try {
     if (name !== 'receipt-original-changed') assert.equal(readFileSync(join(scenario.originalDirectory, 'operation.json'), 'utf8'), scenario.originalBytes, 'original failed operation remains immutable');
     assert.ok(!JSON.stringify(result.state).includes(fake));
     if (successful) { assert.equal(result.state.issuerAccess, false); assert.equal(result.state.qualification, false); assert.equal(result.state.tokenReceipt.kind, 'current-secret-value'); }
+    writeFileSync(join(target, name + '-native.json'), JSON.stringify({ scenario, result: { code: result.code, state: result.state } }, null, 2));
+    proof.push({ name, exit: result.code, sets: scenario.sets, dispatches: scenario.dispatches, deletes: scenario.deletes, cancels: scenario.cancels, nativeCalls: scenario.calls, state: join(result.operation, 'operation.json') });
+  }
+  for (const name of ['receipt-reader-success', 'receipt-reader-head', 'receipt-reader-ci', 'receipt-reader-workflow', 'receipt-reader-binding', 'receipt-reader-old-binding-changed', 'receipt-reader-delivery-changed', 'receipt-reader-extra']) {
+    scenario = { kind: receiptRecovery.kind, mode: name, readerPending: true, secret: { name: 'MODS_SOURCE_READ_TOKEN', created_at: '2026-11-13T23:59:18Z', updated_at: '2026-11-13T23:59:18Z' }, setAt: Date.now() - 2_000, status: 'completed', conclusion: 'success', sets: 0, deletes: 0, dispatches: 0, cancels: 0, calls: [], unknown: [] };
+    const initial = await execute('receipt-recover', name);
+    assert.equal(initial.code, 1, 'initial completed receipt run remains preserved when no receipt can be read');
+    assert.equal(initial.state.activeCommand, null);
+    assert.equal(scenario.deletes, 0);
+    const oldBinding = readFileSync(scenario.bindingFile, 'utf8');
+    scenario.readerPending = false; scenario.readerActive = true;
+    const result = await execute('recover', name);
+    const successful = name === 'receipt-reader-success';
+    assert.equal(result.code, successful ? 0 : 1, name);
+    assert.equal(scenario.dispatches, 1, 'new reader resumes only the same existing receipt run');
+    assert.equal(scenario.sets, 0); assert.equal(scenario.cancels, 0);
+    assert.equal(scenario.deletes, successful ? 1 : 0);
+    assert.equal(result.state.head, head, 'reader delivery never rewrites operation head');
+    assert.equal(result.state.run.head, head);
+    assert.equal(result.state.run.id, 92001);
+    assert.equal(readFileSync(join(scenario.originalDirectory, 'operation.json'), 'utf8'), scenario.originalBytes);
+    if (name !== 'receipt-reader-old-binding-changed') assert.equal(readFileSync(scenario.bindingFile, 'utf8'), oldBinding);
+    if (successful) {
+      assert.equal(result.state.readerDeliveries.length, 1);
+      assert.equal(result.state.readerDeliveries[0].head, 'e'.repeat(40));
+      assert.equal(result.state.readerDeliveries[0].requiredCIRunID, 38939673061);
+      assert.equal(result.state.tokenReceipt.head, head);
+    }
+    assert.equal(scenario.unknown.length, 0, JSON.stringify(scenario.unknown));
     writeFileSync(join(target, name + '-native.json'), JSON.stringify({ scenario, result: { code: result.code, state: result.state } }, null, 2));
     proof.push({ name, exit: result.code, sets: scenario.sets, dispatches: scenario.dispatches, deletes: scenario.deletes, cancels: scenario.cancels, nativeCalls: scenario.calls, state: join(result.operation, 'operation.json') });
   }
