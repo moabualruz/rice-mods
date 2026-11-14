@@ -49,7 +49,21 @@ test('receipt-only launcher never resolves or invokes an issuer', { skip: proces
   writeFileSync(join(scripts, 'private-repositories.json'), JSON.stringify([env.SOURCE_REPOSITORY]));
   const receiver = join(root, 'managed-receiver');
   const marker = join(root, 'receiver-proof');
-  writeFileSync(receiver, `#!/bin/bash\nset -eu\ntest -z "\${GH_TOKEN+x}\${GITHUB_TOKEN+x}\${MISE_GITHUB_TOKEN+x}\${RICE_RELEASE_DOWNLOAD_TOKEN+x}\${RICE_RELEASE_DOWNLOAD_TOKEN_EXPIRES_AT+x}"\nprintf '%s\\n' "$2" >> '${marker}'\n`, { mode: 0o755 });
+  writeFileSync(receiver, `#!/bin/bash
+set -eu
+test -z "\${GH_TOKEN+x}\${GITHUB_TOKEN+x}\${MISE_GITHUB_TOKEN+x}\${RICE_RELEASE_DOWNLOAD_TOKEN+x}\${RICE_RELEASE_DOWNLOAD_TOKEN_EXPIRES_AT+x}"
+out=$(/usr/bin/readlink "/proc/$$/fd/1")
+ready=
+case "$out" in
+  */controller-command.log) ready="$4/launcher-start.json" ;;
+  */resume-command.*) ready="$out.start.json" ;;
+esac
+if [ -n "$ready" ]; then
+  for _ in $(/usr/bin/seq 1 100); do [ ! -s "$ready" ] || break; /bin/sleep 0.01; done
+  test -s "$ready"
+fi
+printf '%s\\n' "$2" >> '${marker}'
+`, { mode: 0o755 });
   const gh = execFileSync('which', ['gh'], { encoding: 'utf8' }).trim();
   const pin = path => ({ path, sha256: sha256(readFileSync(path)) });
   writeFileSync(join(scripts, 'private-source-host.json'), JSON.stringify({ version: 1, platform: 'linux', architecture: 'x64', executables: { gh: pin(gh), node: pin(receiver), timeout: pin('/usr/bin/timeout') } }));
