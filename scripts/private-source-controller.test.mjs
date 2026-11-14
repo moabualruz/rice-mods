@@ -70,7 +70,7 @@ const server = createServer({ key, cert: readFileSync(certFile) }, async (req, r
   const json = (status, value) => { res.writeHead(status, { 'content-type': 'application/json', 'x-github-request-id': 'FIXTURE' }); res.end(value === undefined ? undefined : JSON.stringify(value)); };
   if (path === '/meta') return json(200, { installed_version: '3.20.0' });
   if (path === `/repos/${repo}`) return json(200, { id: 77, full_name: repo, name: 'rice-mods', owner: { login: 'moabualruz' }, private: true, default_branch: 'main', permissions: { admin: true } });
-  if (path === `/repos/${repo}/git/ref/heads/main`) return json(200, { object: { sha: scenario.mode === 'moved-head' ? 'b'.repeat(40) : head } });
+  if (path === `/repos/${repo}/git/ref/heads/main`) return json(200, { object: { sha: scenario.mode === 'moved-head' || scenario.headChanged ? 'b'.repeat(40) : head } });
   if (path === `/repos/${repo}/git/commits/${head}`) return json(200, { sha: head, tree: { sha: 'c'.repeat(40) } });
   if (path === `/repos/${repo}/git/trees/${'c'.repeat(40)}`) return json(200, { truncated: false, tree: sourceTree.map(value => scenario.mode === 'stale-source' && value.path === 'scripts/plugin-source-check.sh' ? { ...value, sha: 'b'.repeat(40) } : value) });
   if (path.endsWith('/contents/' + qualification.workflow)) return json(200, { encoding: 'base64', content: (scenario.mode === 'changed-workflow' || scenario.mode === 'receipt-original-workflow' ? Buffer.from('different workflow') : workflow).toString('base64') });
@@ -124,6 +124,8 @@ const server = createServer({ key, cert: readFileSync(certFile) }, async (req, r
     if (recovery()) Object.assign(receipt, { kind: 'current-secret-value', originalBindingSHA256: scenario.originalBindingSHA256, originalHead: 'd'.repeat(40), originalWorkflowSHA256: createHash('sha256').update(workflow).digest('hex'), originalRunID: 91001, originalRunAttempt: 1 });
     if (scenario.mode === 'late-foreign' || scenario.mode === 'receipt-late-metadata') scenario.secret.updated_at = '2099-01-01T00:00:00Z';
     if (scenario.mode === 'receipt-original-changed') writeFileSync(join(scenario.originalDirectory, 'operation.json'), '{}', { mode: 0o600 });
+    if (scenario.mode === 'receipt-current-head-changed') scenario.headChanged = true;
+    if (scenario.mode === 'receipt-binding-changed') writeFileSync(scenario.bindingFile, '{}');
     res.writeHead(200, { 'content-type': 'text/plain' });
     const marker = 'timestamp ' + currentProtocol().marker + JSON.stringify(receipt) + '\n';
     return res.end(['missing-receipt', 'receipt-missing'].includes(scenario.mode) ? 'no ownership receipt\n' : ['ambiguous-receipt', 'receipt-duplicate'].includes(scenario.mode) ? marker + marker : marker);
@@ -196,6 +198,7 @@ async function execute(mode, name) {
   const bindingFile = join(target, name + '-binding.json');
   const operation = join(target, name);
   scenario.operation = operation;
+  scenario.bindingFile = bindingFile;
   if (recovery() && !scenario.originalDirectory) {
     scenario.originalDirectory = join(target, name + '-original'); mkdirSync(scenario.originalDirectory, { mode: 0o700 });
     scenario.originalBindingFile = join(target, name + '-original-binding.json');
@@ -207,6 +210,7 @@ async function execute(mode, name) {
     writeFileSync(join(scenario.originalDirectory, 'operation.json'), scenario.originalBytes, { mode: 0o600 });
     scenario.originalOperationSHA256 = createHash('sha256').update(scenario.originalBytes).digest('hex');
     if (scenario.mode === 'receipt-metadata-changed') scenario.secret.updated_at = '2099-01-01T00:00:00Z';
+    if (scenario.mode === 'receipt-absent') scenario.secret = null;
   }
   const bound = { repository: repo, sourceRepository: scenario.mode === 'wrong-source' ? 'owner/unknown' : entry.repo, sourceCommit: scenario.mode === 'wrong-pin' ? 'b'.repeat(40) : entry.commit, sourceLimitsBlob: entry.limits, requiredCIRunID: 38939673060, requiredCIAttempt: 1, head, workflowSHA256: createHash('sha256').update(recovery() ? receiptWorkflow : workflow).digest('hex'), ...(recovery() ? { originalBindingSHA256: scenario.mode === 'receipt-original-binding' ? 'f'.repeat(64) : scenario.originalBindingSHA256, originalOperationSHA256: scenario.originalOperationSHA256 } : { helperDeliveryRef: 'fixture://helper' }), ...(scenario.mode === 'arbitrary-gh' ? { gh: '/untrusted/recipient' } : {}) };
   writeFileSync(bindingFile, JSON.stringify(bound));
@@ -259,7 +263,7 @@ try {
     if (name === 'wrong-run') { assert.equal(scenario.cancels, 0); assert.ok(result.state.firstRunIdentityMismatch.fields.some(v => v.field === 'repository')); }
     proof.push({ name, exit: result.code, sets: scenario.sets, dispatches: scenario.dispatches, deletes: scenario.deletes, cancels: scenario.cancels, nativeCalls: scenario.calls, state: join(result.operation, 'operation.json') });
   }
-  for (const name of ['receipt-success', 'receipt-resume', 'receipt-foreign-value', 'receipt-missing', 'receipt-duplicate', 'receipt-metadata-changed', 'receipt-late-metadata', 'receipt-original-binding', 'receipt-original-changed', 'receipt-original-active', 'receipt-original-workflow', 'receipt-current-workflow']) {
+  for (const name of ['receipt-success', 'receipt-resume', 'receipt-foreign-value', 'receipt-missing', 'receipt-duplicate', 'receipt-absent', 'receipt-metadata-changed', 'receipt-late-metadata', 'receipt-original-binding', 'receipt-original-changed', 'receipt-original-active', 'receipt-original-workflow', 'receipt-current-workflow', 'receipt-current-head-changed', 'receipt-binding-changed']) {
     scenario = { kind: receiptRecovery.kind, mode: name, secret: { name: 'MODS_SOURCE_READ_TOKEN', created_at: '2026-11-13T23:59:18Z', updated_at: '2026-11-13T23:59:18Z' }, setAt: Date.now() - 2_000, status: 'completed', conclusion: 'success', sets: 0, deletes: 0, dispatches: 0, cancels: 0, calls: [], unknown: [] };
     let result = await execute('receipt-recover', name);
     if (name === 'receipt-resume') {
@@ -271,7 +275,7 @@ try {
     const successful = ['receipt-success', 'receipt-resume'].includes(name);
     assert.equal(result.code, successful ? 0 : 1, name);
     assert.equal(scenario.sets, 0, 'no-mint recovery never sets a secret');
-    assert.equal(scenario.dispatches, ['receipt-metadata-changed', 'receipt-original-binding', 'receipt-original-active', 'receipt-original-workflow', 'receipt-current-workflow'].includes(name) ? 0 : 1, 'receipt recovery dispatches once or refuses before mutation');
+    assert.equal(scenario.dispatches, ['receipt-absent', 'receipt-metadata-changed', 'receipt-original-binding', 'receipt-original-active', 'receipt-original-workflow', 'receipt-current-workflow'].includes(name) ? 0 : 1, 'receipt recovery dispatches once or refuses before mutation');
     assert.equal(scenario.deletes, successful ? 1 : 0, 'only an authentic current-value receipt permits deletion');
     assert.equal(scenario.cancels, 0, 'original or unproven runs are never cancelled');
     assert.equal(scenario.unknown.length, 0, JSON.stringify(scenario.unknown));

@@ -115,6 +115,7 @@ for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => {
 let assertProviderCustody = () => { throw new Error('native repository custody unavailable'); };
 async function gh(phase, args, { stdin, limit = 30_000, allowFailure = false } = {}) {
   assertProviderCustody();
+  if (ownedJSON(bindingFile).sha256 !== bindingSHA256) throw new Error('binding changed during operation');
   if (createHash('sha256').update(readFileSync(ghBinary)).digest('hex') !== ghSHA256) throw new Error('native gh installation changed');
   let output = Buffer.alloc(0);
   let bytes = 0;
@@ -264,7 +265,7 @@ async function stopRecordedCommand() {
   if (birth(command.pid) === command.birth) { try { process.kill(-command.pid, 'SIGKILL'); } catch {} }
   save({ activeCommand: null });
 }
-async function cleanup() {
+async function cleanup({ receiptDeletion = true } = {}) {
   let state = load();
   if (!state) return;
   const errors = [];
@@ -279,16 +280,19 @@ async function cleanup() {
       if (run.status !== 'completed') throw new Error('owned run is not terminal after cancellation; cleanup still required');
     }
   } catch (error) { errors.push(error); }
+  if (protocol === receiptRecovery && (!receiptDeletion || errors.length)) throw new AggregateError(errors.length ? errors : [new Error('receipt recovery failed; secret preserved')], 'owned cleanup incomplete');
   state = load();
   try { if ((state.setAttemptedAt || state.kind === receiptRecovery.kind) && !state.secretDeletedAt) {
     const current = await secretMetadata();
+    if (!current && protocol === receiptRecovery) { save({ secretAbsentObservedAt: new Date().toISOString() }); throw new Error('original secret absent; no owned deletion inferred'); }
     if (current) {
       const owned = state.secretOwned;
       if (!owned || !sameSecret(owned, current)) throw new Error('secret ownership unknown or metadata changed; preserve it');
+      if (protocol === receiptRecovery) { await verifyCurrentDelivery(); await verifyOriginalOperation(); }
       const run = await finalRun();
       if (!run) throw new Error('owned run receipt unavailable; preserve secret');
       await verifyTokenReceipt(run);
-      if (protocol === receiptRecovery) await verifyOriginalOperation();
+      if (protocol === receiptRecovery) { await verifyCurrentDelivery(); await verifyOriginalOperation(); }
       assertProviderCustody();
       if (!sameSecret(owned, await secretMetadata())) throw new Error('secret changed after receipt; preserve it');
       if (protocol === receiptRecovery) originalSnapshot();
@@ -374,7 +378,7 @@ try {
   primaryError = { phase: error.phase || 'controller', class: error.name, messageBytes: Buffer.byteLength(String(error.message)), messageSHA256: digest(String(error.message)) };
   if (load()) save({ [mode === 'recover' ? 'recoveryError' : 'primaryError']: primaryError });
 } finally {
-  try { await cleanup(); } catch (error) {
+  try { await cleanup({ receiptDeletion: !primaryError }); } catch (error) {
     if (load()) save({ cleanupFailures: [...(load().cleanupFailures || []), { at: new Date().toISOString(), class: error.name, causes: (error.errors || [error]).map(cause => ({ phase: cause.phase || 'cleanup', class: cause.name, messageSHA256: digest(String(cause.message)) })) }] });
     primaryError ||= { phase: 'cleanup', class: 'incomplete' };
   }
