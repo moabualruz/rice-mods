@@ -32,7 +32,7 @@ The controller verifies the private repository, exact main head, critical local 
 
 Run metadata can be incomplete just after dispatch. The controller permits at most seven identity observations within ten seconds after a candidate appears, while still requiring every exact repository, run, head, branch, event, workflow, attempt and title predicate. A handle must also be absent from the recorded pre-dispatch inventory and created after its dispatch intent, including handles returned directly by native `gh`. Its creation time remains immutable after admission. The controller records the first mismatch and a bounded recent history using predicate names, presence, type, length and hashes. Arbitrary provider strings are not copied into those records. An unproven or foreign run is never cancelled.
 
-The trusted source step emits a SHA256 comparison receipt for its received token, bound to the exact repository, head, workflow, source commit, run, job and attempt. The token value is never logged. Cleanup uses the attempt-specific native job endpoint, verifies run/head/job identity and reads bounded native job logs into memory. It requires exactly one matching receipt, then rechecks secret metadata under live repository custody. Missing, mismatched or ambiguous receipts preserve the secret and return nonzero. Neither the fingerprint nor metadata equality is presented as an atomic GitHub compare-and-delete operation.
+The trusted source step emits a SHA256 comparison receipt for its received token, bound to the exact repository, head, workflow, source commit, run, job and attempt. The token value is never logged. Cleanup uses the attempt-specific native job endpoint, verifies run/head/job identity and reads bounded native job logs into memory. That fetch explicitly permits native gh to return ANSI-bearing logs to the in-memory parser; raw bytes never reach terminal output or persisted logs. It requires exactly one matching receipt, then rechecks secret metadata under live repository custody. Missing, mismatched or ambiguous receipts preserve the secret and return nonzero. Neither the fingerprint nor metadata equality is presented as an atomic GitHub compare-and-delete operation.
 
 ## Recover an interrupted operation
 
@@ -72,11 +72,24 @@ bash scripts/private-source-qualification.sh --receipt-recovery \
   /absolute/original-binding.json /absolute/original-operation
 ```
 
-This mode cannot invoke Bao or the issuer and never creates or replaces a token. It leaves the original failed operation unchanged. Its recovery result is not source qualification. Resume only the existing receipt run with the same binding and directory:
+This mode cannot invoke Bao or the issuer and never creates or replaces a token. It leaves the original failed operation unchanged. Its recovery result is not source qualification.
+
+To resume through a repaired controller, preserve the existing receipt binding and directory. Supply a separate current reader delivery binding with exactly these fields:
+
+| Field | Required binding |
+| --- | --- |
+| `repository` | `moabualruz/rice-mods` |
+| `head` | Exact current delivered main containing the reader |
+| `requiredCIRunID`, `requiredCIAttempt` | Successful ordinary main-push CI for that current head |
+| `workflowSHA256` | Current receipt workflow SHA256, identical to the existing receipt binding |
+| `receiptBindingSHA256` | SHA256 of the unchanged existing receipt binding file |
+
+The controller verifies the current reader's main, CI and critical source blobs separately. Both binding files must retain their admitted hashes before every provider call. The original operation head, run, attempt and receipt identity stay unchanged, and reader delivery metadata is appended to recovery evidence. A changed workflow, wrong source delivery, altered binding or unknown field refuses cleanup. Normal qualification cannot use a reader override.
 
 ```sh
 bash scripts/private-source-qualification.sh --resume-receipt \
-  /absolute/current-recovery-binding.json /absolute/existing-recovery-operation
+  /absolute/existing-recovery-binding.json /absolute/existing-recovery-operation \
+  /absolute/current-reader-delivery.json
 ```
 
 Resume obtains fresh custody, preserves prior logs and never dispatches another run. It can stop only the recorded native command PID and birth identity, then observe the already-owned receipt workflow. Any incomplete cleanup remains nonzero. A later source qualification is a new normal operation with its own current binding, issuer session and one dispatch.

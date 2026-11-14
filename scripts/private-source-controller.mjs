@@ -17,7 +17,7 @@ async function installedDeliveryLease({ repository, run }) {
   return withRiceDeliveryLease({ repository, root: toolkit, run });
 }
 
-export async function runPrivateSourceController({ mode, bindingFile, directory, originalBindingFile, originalDirectory, withDeliveryLease = installedDeliveryLease, nativeGH }) {
+export async function runPrivateSourceController({ mode, bindingFile, directory, originalBindingFile, originalDirectory, readerDeliveryFile, withDeliveryLease = installedDeliveryLease, nativeGH }) {
 const token = process.env.RICE_RELEASE_DOWNLOAD_TOKEN || '';
 const expires = Date.parse(process.env.RICE_RELEASE_DOWNLOAD_TOKEN_EXPIRES_AT || '');
 delete process.env.RICE_RELEASE_DOWNLOAD_TOKEN;
@@ -84,6 +84,16 @@ if (binding.repository !== repo || !entry || !privateRepositories.includes(sourc
 // The installed repository-wide native keeper owns provider custody; binding strings grant none.
 const bindingSHA256 = bindingRecord.sha256;
 if (previous && previous.bindingSHA256 !== bindingSHA256) throw new Error('binding changed');
+const readerRecord = readerDeliveryFile ? ownedJSON(readerDeliveryFile) : null;
+if (readerRecord) {
+  const value = readerRecord.value;
+  const fields = ['repository', 'head', 'requiredCIRunID', 'requiredCIAttempt', 'workflowSHA256', 'receiptBindingSHA256'];
+  if (mode !== 'recover' || protocol !== receiptRecovery || !previous || resolve(readerDeliveryFile) !== readerDeliveryFile ||
+      Object.keys(value).length !== fields.length || Object.keys(value).some(key => !fields.includes(key)) ||
+      value.repository !== repo || !exactCommit(value.head) || !positiveID(value.requiredCIRunID) || !positiveID(value.requiredCIAttempt) ||
+      value.workflowSHA256 !== binding.workflowSHA256 || value.receiptBindingSHA256 !== bindingSHA256) throw new Error('exact current receipt reader delivery required');
+}
+const delivery = readerRecord?.value || binding;
 function save(patch) {
   const current = load();
   if (current && current.bindingSHA256 !== bindingSHA256) throw new Error('binding changed');
@@ -116,6 +126,7 @@ let assertProviderCustody = () => { throw new Error('native repository custody u
 async function gh(phase, args, { stdin, limit = 30_000, allowFailure = false } = {}) {
   assertProviderCustody();
   if (ownedJSON(bindingFile).sha256 !== bindingSHA256) throw new Error('binding changed during operation');
+  if (readerRecord && ownedJSON(readerDeliveryFile).sha256 !== readerRecord.sha256) throw new Error('reader delivery binding changed during operation');
   if (createHash('sha256').update(readFileSync(ghBinary)).digest('hex') !== ghSHA256) throw new Error('native gh installation changed');
   let output = Buffer.alloc(0);
   let bytes = 0;
@@ -177,8 +188,8 @@ async function verifyOriginalOperation() {
   return original;
 }
 async function verifyDeliveredSource() {
-  const commit = await api('delivered-commit', `repos/${repo}/git/commits/${head}`);
-  if (commit.sha !== head || !/^[0-9a-f]{40}$/.test(commit.tree?.sha || '')) throw new Error('delivered commit identity mismatch');
+  const commit = await api('delivered-commit', `repos/${repo}/git/commits/${delivery.head}`);
+  if (commit.sha !== delivery.head || !/^[0-9a-f]{40}$/.test(commit.tree?.sha || '')) throw new Error('delivered commit identity mismatch');
   const tree = await api('delivered-tree', `repos/${repo}/git/trees/${commit.tree.sha}?recursive=1`);
   if (tree.truncated !== false || !Array.isArray(tree.tree)) throw new Error('complete delivered source tree required');
   const paths = ['.claude-plugin/marketplace.json', '.claude-plugin/marketplace.lock.json', 'README.md', 'scripts/private-repositories.json', 'scripts/plugin-source-check.sh', 'scripts/marketplace-lock.mjs', 'release-packages/scripts/plugin.sh', 'release-packages/scripts/vendor-lock.sh', 'release-packages.lock', 'vendir.yml', 'vendir.lock.yml', 'scripts/private-source-controller.mjs', 'scripts/private-source-protocol.mjs', 'scripts/private-source-qualification.sh', 'scripts/private-source-host.json', 'scripts/private-source-host.mjs', '.github/workflows/ci.yml', qualification.workflow, receiptRecovery.workflow];
@@ -195,13 +206,13 @@ async function verifyCurrentDelivery() {
   const repository = await api('repository', `repos/${repo}`);
   if (repository.full_name !== repo || repository.private !== true || repository.default_branch !== 'main' || repository.permissions?.admin !== true) throw new Error('destination repository identity mismatch');
   const branch = await api('main-head', `repos/${repo}/git/ref/heads/main`);
-  if (branch.object?.sha !== head) throw new Error('delivered head moved');
+  if (branch.object?.sha !== delivery.head) throw new Error('delivered head moved');
   await verifyDeliveredSource();
-  const content = await api('workflow-content', `repos/${repo}/contents/${workflow}?ref=${head}`);
+  const content = await api('workflow-content', `repos/${repo}/contents/${workflow}?ref=${delivery.head}`);
   if (content.encoding !== 'base64' || digest(Buffer.from(content.content, 'base64')) !== workflowSHA256) throw new Error('workflow digest mismatch');
-  const ci = await api('required-ci', `repos/${repo}/actions/runs/${binding.requiredCIRunID}`);
+  const ci = await api('required-ci', `repos/${repo}/actions/runs/${delivery.requiredCIRunID}`);
   const ordinaryWorkflow = await api('ordinary-ci-workflow', `repos/${repo}/actions/workflows/ci.yml`);
-  if (ci.head_sha !== head || ci.repository?.full_name !== repo || ci.status !== 'completed' || ci.conclusion !== 'success' || ci.name !== 'CI' || ci.path !== '.github/workflows/ci.yml' || ci.event !== 'push' || ci.head_branch !== 'main' || ci.run_attempt !== binding.requiredCIAttempt || !positiveID(ordinaryWorkflow.id) || ci.workflow_id !== ordinaryWorkflow.id) throw new Error('exact required CI is not successful');
+  if (ci.head_sha !== delivery.head || ci.repository?.full_name !== repo || ci.status !== 'completed' || ci.conclusion !== 'success' || ci.name !== 'CI' || ci.path !== '.github/workflows/ci.yml' || ci.event !== 'push' || ci.head_branch !== 'main' || ci.run_attempt !== delivery.requiredCIAttempt || !positiveID(ordinaryWorkflow.id) || ci.workflow_id !== ordinaryWorkflow.id) throw new Error('exact required CI is not successful');
 }
 async function verifyTokenReceipt(run) {
   const jobs = await api('receipt-jobs', `repos/${repo}/actions/runs/${run.id}/attempts/${run.attempt}/jobs?per_page=100`);
@@ -210,7 +221,8 @@ async function verifyTokenReceipt(run) {
   if (matches.length !== 1 || !positiveID(matches[0].id)) throw new Error('exact receipt-producing job required');
   const job = matches[0];
   if (protocol === receiptRecovery && (run.status !== 'completed' || run.conclusion !== 'success' || job.status !== 'completed' || job.conclusion !== 'success')) throw new Error('receipt recovery must complete successfully');
-  const logs = await gh('token-receipt', ['api', `repos/${repo}/actions/jobs/${job.id}/logs`]);
+  // Raw job logs stay in bounded memory; native gh otherwise refuses their ANSI bytes even when piped.
+  const logs = await gh('token-receipt', ['api', '--allow-escape-sequences', `repos/${repo}/actions/jobs/${job.id}/logs`]);
   const markers = [...logs.text.matchAll(new RegExp(protocol.marker + '({[^\\r\\n]*})', 'g'))];
   if (markers.length !== 1) throw new Error('token ownership receipt missing or ambiguous');
   const receipt = JSON.parse(markers[0][1]);
@@ -347,6 +359,9 @@ try {
       originalSnapshot();
       await stopRecordedCommand();
       await verifyCurrentDelivery();
+      if (readerRecord && !(load().readerDeliveries || []).some(value => value.bindingSHA256 === readerRecord.sha256)) {
+        save({ readerDeliveries: [...(load().readerDeliveries || []), { ...delivery, bindingSHA256: readerRecord.sha256, verifiedAt: new Date().toISOString() }] });
+      }
       await verifyOriginalOperation();
       if (load().dispatchAttemptedAt && !load().run && !await discoverRun(true)) throw new Error('receipt recovery run unavailable; no redispatch');
       const run = await finalRun();
@@ -399,6 +414,6 @@ return primaryError ? 1 : 0;
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const [, , mode, bindingFile, directory, originalBindingFile, originalDirectory] = process.argv;
-  try { process.exitCode = await runPrivateSourceController({ mode, bindingFile, directory, originalBindingFile, originalDirectory }); }
+  try { process.exitCode = await runPrivateSourceController({ mode, bindingFile, directory, originalBindingFile, originalDirectory, readerDeliveryFile: mode === 'recover' ? originalBindingFile : undefined }); }
   catch (error) { console.error(JSON.stringify({ phase: 'controller-setup', class: error.name, fingerprint: createHash('sha256').update(String(error.message)).digest('hex') })); process.exitCode = 1; }
 }
