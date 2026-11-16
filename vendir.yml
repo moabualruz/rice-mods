@@ -1,7 +1,7 @@
 apiVersion: vendir.k14s.io/v1alpha1
 kind: Config
 minimumRequiredVersion: 0.40.0
-# rice-release is private. Supply GH_TOKEN from OpenBao as a read-only credential scoped to
+# rice-release is a private repository. Supply GH_TOKEN as a read-only credential scoped to
 # moabualruz/rice-release; keep credential values out of this file.
 directories:
   - path: release-packages

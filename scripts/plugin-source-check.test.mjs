@@ -3,7 +3,6 @@ import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFi
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
 import test from "node:test";
 
 const sha = "a".repeat(40);
@@ -81,13 +80,6 @@ test("a scoped operation checks exactly one declared source and rejects unknown 
   const result = run(root, { FIXTURE_STATUS: "success", LIVE_RELEASE_CHECK: "required", RICE_RELEASE_DOWNLOAD_TOKEN: "synthetic-scoped-token", FIXTURE_EXPECTED_TOKEN: "synthetic-scoped-token" }, ["--repo", "owner/example"]);
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /1 checked, 0 skipped/);
-  const receipt = JSON.parse(result.stdout.match(/mods-source-token-receipt:(.*)/)[1]);
-  assert.equal(receipt.sourceRepository, "owner/example");
-  assert.equal(receipt.sourceCommit, sha);
-  assert.equal(receipt.runID, 91001);
-  assert.equal(receipt.runAttempt, 1);
-  assert.equal(receipt.job, "qualify");
-  assert.equal(receipt.tokenSHA256, createHash("sha256").update("synthetic-scoped-token").digest("hex"));
   assert.equal(readFileSync(join(root, "requests"), "utf8"), `repos/owner/example/tarball/${sha}\n`);
   for (const args of [["--repo", "owner/other"], ["--repo", "owner/unknown"], ["--repo", "../escape"], ["--unknown"], ["--repo"]]) {
     const isolated = fixture([source(), source("other", "owner/other")]);

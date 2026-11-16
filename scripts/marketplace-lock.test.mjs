@@ -109,7 +109,7 @@ test("offline verification reports its source verification boundary", () => {
   const root = generated();
   const result = run(root, "verify", { UNAUTH: "1" });
   assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, /source and LIMITS verification skipped: requires authenticated access to private plugin repositories/);
+  assert.match(result.stdout, /source and LIMITS verification skipped: requires authenticated GitHub access to the plugin repositories/);
 });
 
 test("generator refuses unauthenticated access", () => {
