@@ -18,7 +18,7 @@ For every product mod release, publish:
 3. A detached minisign signature for `checksums.txt`, produced by the release
    pipeline's key-based signing step in no-transparency-log mode. The signed
    checksum binds the signature to the ZIP digest. Build unsigned in CI; sign as
-   an operator step on a trusted host using configured OpenBao references.
+   an operator step on a trusted host using configured secret references.
    Publish the public verification key through the product's established
    key-distribution channel. Never put private key material in the archive or
    release assets.

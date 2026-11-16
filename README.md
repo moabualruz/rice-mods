@@ -14,10 +14,6 @@ inference proxy or gateway.
 
 The release-lane per-product limits requirements and source-derived product rows are documented in [docs/mod-release-assets.md](docs/mod-release-assets.md).
 
-The marketplace lock records each private repository name, release tag and commit pin, plus the Git blob ID of its `LIMITS.md`. `just marketplace-lock-verify` checks the lock, marketplace and README agree offline; it cannot prove the source or limits content. A maintainer with authenticated access can run `just marketplace-lock-verify-online` to check each tag and substantive limits file at its pin. After updating pins, regenerate the lock with `just marketplace-lock-generate` using authenticated access; do not edit it by hand. `just ci` also runs the vendored `plugin.sh check` against each exact pinned source tree (`scripts/plugin-source-check.sh`); it needs a token that can read the private sources and skips unreadable sources explicitly only in hosted CI.
-
-The trusted [private source qualification controller](docs/private-source-qualification.md) binds manual main-only checks to one source, a short-lived read session, and owned cleanup. Ordinary pull request CI receives no private source token.
-
 For development, run `just worktree-doctor` before the gate. It reports missing tools or vendored files and the bootstrap command. The repository pre-push hook runs readiness first, then delegates to the installed `git-canonical-gate`; it accepts only the checked-out candidate. Install the maintained adapter with `rice-agent install` when it is missing.
 
 Rice Accounts manages Anthropic OAuth sign-ins and setup tokens. API keys,
@@ -57,16 +53,14 @@ were both 2.1.310, so there was no newer version to qualify.
 
 ## Install
 
-The marketplace repository is private, so authenticated `gh` or Git access is required; see [collaborator setup](#adding-a-private-marketplace-as-a-collaborator).
-
-Run the command for the mod you want, or run both commands:
+No account, token or collaborator access is needed to read or install from this marketplace once this repository and both mod repositories are public. Run the command for the mod you want, or run both commands:
 
 ```bash
 claude plugin install rice-session-accounts --marketplace moabualruz/rice-mods
 claude plugin install rice-multi-models --marketplace moabualruz/rice-mods
 ```
 
-Each command adds the marketplace if needed and installs that plugin. Restart
+Each command adds the marketplace if needed and installs that plugin at the commit pinned in the table below. Restart
 ordinary Claude Code after installation. `claude plugin list` shows installed
 plugins. Check the installed version before using a newly published feature.
 
@@ -74,23 +68,25 @@ Alternatively, add the marketplace once and install by its short name:
 
 ```bash
 claude plugin marketplace add moabualruz/rice-mods
+claude plugin marketplace list
 claude plugin install rice-session-accounts@rice-mods
 claude plugin install rice-multi-models@rice-mods
 ```
 
-### Adding a private marketplace as a collaborator
+The marketplace and both mod sources are fetched from GitHub over HTTPS. If your
+network or Git configuration requires a credential for GitHub, use your normal
+credential helper; never paste a token into a command, shell history or file.
 
-Use your own Git identity and credential helper. Configure the helper with its
-normal interactive sign-in flow before adding the marketplace. Then run
-`claude plugin marketplace add OWNER/REPOSITORY` without embedding a token in the
-URL or command. If Git prompts for authentication, complete the prompt through
-your credential helper; do not paste a token into shell history, a file, or a
-script. Confirm the marketplace appears with `claude plugin marketplace list`,
-then install a plugin by its marketplace-qualified name. Never ask another
-collaborator to share credentials. A clean-directory test added and listed a
-private product marketplace using the owner's existing GitHub credential. This
-proves access for that identity, not a separate collaborator account. See the
-[recorded check](docs/collaborator-install.md).
+## What is pinned
+
+This marketplace does not track the mods' default branches. Each plugin entry in `.claude-plugin/marketplace.json` pins one exact commit, so installing from this marketplace always gives the reviewed release below, whatever the mod repositories have done since.
+
+| Plugin | Release tag | Pinned commit |
+| --- | --- | --- |
+| rice-session-accounts | `rice-session-accounts--v0.6.1` | `b6a7031` |
+| rice-multi-models | `rice-multi-models--v0.17.7` | `33d4a45` |
+
+The marketplace lock (`.claude-plugin/marketplace.lock.json`) records each repository name, release tag and commit pin, plus the Git blob ID of its `LIMITS.md`. `just marketplace-lock-verify` checks that the lock, the marketplace and the version column of the mod table at the top agree offline (the pins table above is maintained by hand with the pins); it cannot prove the source or limits content. `just marketplace-lock-verify-online` checks each tag and substantive limits file at its pin, and needs GitHub access through `gh`. After updating pins, regenerate the lock with `just marketplace-lock-generate`; do not edit it by hand. `just ci` also runs the vendored `plugin.sh check` against each exact pinned source tree (`scripts/plugin-source-check.sh`), which needs `gh` authenticated with any GitHub account. Hosted CI skips a source it cannot read, explicitly and visibly. Pull request CI uses no repository secrets and only GitHub-hosted runners.
 
 ## Use Rice Accounts
 

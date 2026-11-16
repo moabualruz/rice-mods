@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const shaPattern = /^[0-9a-f]{40}$/;
-const skipMessage = "source and LIMITS verification skipped: requires authenticated access to private plugin repositories";
+const skipMessage = "source and LIMITS verification skipped: requires authenticated GitHub access to the plugin repositories";
 
 function fail(message) { throw new Error(message); }
 

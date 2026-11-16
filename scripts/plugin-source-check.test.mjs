@@ -3,7 +3,6 @@ import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFi
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
 import test from "node:test";
 
 const sha = "a".repeat(40);
@@ -58,7 +57,7 @@ exec /usr/bin/tar "$@"
 function run(root, extra = {}, args = []) {
   return spawnSync("bash", [join(root, "scripts/plugin-source-check.sh"), ...args], {
     encoding: "utf8",
-    env: { PATH: `${join(root, "bin")}:${process.env.PATH}`, HOME: root, FIXTURE_ROOT: root, FIXTURE_STATUS: "404", FIXTURE_VALIDATOR_FAIL: "false", FIXTURE_EXPECTED_TOKEN: "synthetic-token-sentinel", GITHUB_ACTIONS: "true", GITHUB_REPOSITORY: "moabualruz/rice-mods", GITHUB_SHA: sha, GITHUB_RUN_ID: "91001", GITHUB_RUN_ATTEMPT: "1", GITHUB_JOB: "qualify", GITHUB_TOKEN: "synthetic-token-sentinel", ...extra },
+    env: { PATH: `${join(root, "bin")}:${process.env.PATH}`, HOME: root, FIXTURE_ROOT: root, FIXTURE_STATUS: "404", FIXTURE_VALIDATOR_FAIL: "false", FIXTURE_EXPECTED_TOKEN: "synthetic-token-sentinel", GITHUB_ACTIONS: "true", GITHUB_TOKEN: "synthetic-token-sentinel", ...extra },
   });
 }
 
@@ -76,41 +75,23 @@ test("hosted skips only declared private repositories for unreadable status code
   assert.match(result.stderr, /cannot download other.*HTTP 404/);
 });
 
-test("a scoped operation checks exactly one declared source and rejects unknown selectors", () => {
-  const root = fixture([source(), source("other", "owner/other")]);
-  const result = run(root, { FIXTURE_STATUS: "success", LIVE_RELEASE_CHECK: "required", RICE_RELEASE_DOWNLOAD_TOKEN: "synthetic-scoped-token", FIXTURE_EXPECTED_TOKEN: "synthetic-scoped-token" }, ["--repo", "owner/example"]);
-  assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, /1 checked, 0 skipped/);
-  const receipt = JSON.parse(result.stdout.match(/mods-source-token-receipt:(.*)/)[1]);
-  assert.equal(receipt.sourceRepository, "owner/example");
-  assert.equal(receipt.sourceCommit, sha);
-  assert.equal(receipt.runID, 91001);
-  assert.equal(receipt.runAttempt, 1);
-  assert.equal(receipt.job, "qualify");
-  assert.equal(receipt.tokenSHA256, createHash("sha256").update("synthetic-scoped-token").digest("hex"));
-  assert.equal(readFileSync(join(root, "requests"), "utf8"), `repos/owner/example/tarball/${sha}\n`);
-  for (const args of [["--repo", "owner/other"], ["--repo", "owner/unknown"], ["--repo", "../escape"], ["--unknown"], ["--repo"]]) {
-    const isolated = fixture([source(), source("other", "owner/other")]);
-    assert.notEqual(run(isolated, {}, args).status, 0);
-    assert.ok(!existsSync(join(isolated, "requests")));
-  }
-  const unselected = fixture();
-  assert.notEqual(run(unselected, { RICE_RELEASE_DOWNLOAD_TOKEN: "synthetic-scoped-token" }).status, 0);
-  assert.ok(!existsSync(join(unselected, "requests")));
+test("arguments are rejected before any download", () => {
+  const root = fixture();
+  assert.notEqual(run(root, {}, ["--repo", "owner/example"]).status, 0);
+  assert.ok(!existsSync(join(root, "requests")));
 });
 
-test("the extractor and validator refuse inherited credential variables after a scoped download", () => {
+test("the extractor and validator refuse inherited credential variables after a download", () => {
   const root = fixture();
   const result = run(root, {
     FIXTURE_STATUS: "success",
     LIVE_RELEASE_CHECK: "required",
     GH_TOKEN: "synthetic-operator-token",
     MISE_GITHUB_TOKEN: "synthetic-mise-token",
-    RICE_RELEASE_DOWNLOAD_TOKEN: "synthetic-scoped-token",
-    RICE_RELEASE_DOWNLOAD_TOKEN_EXPIRES_AT: "synthetic-expiry",
     plugin_source_read_token: "synthetic-exported-parent-token",
+    GITHUB_TOKEN: "synthetic-scoped-token",
     FIXTURE_EXPECTED_TOKEN: "synthetic-scoped-token",
-  }, ["--repo", "owner/example"]);
+  });
   assert.equal(result.status, 0, result.stderr);
   assert.equal(readFileSync(join(root, "validations"), "utf8"), "validate\n");
   assert.doesNotMatch(result.stdout + result.stderr, /synthetic-(operator|mise|scoped|exported-parent)-token|synthetic-expiry/);
