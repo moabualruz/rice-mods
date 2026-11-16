@@ -8,17 +8,9 @@ set -euo pipefail
 set +x
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-selected_repository=""
 if [ "$#" -ne 0 ]; then
-  if [ "$#" -ne 2 ] || [ "$1" != --repo ]; then
-    echo "usage: plugin-source-check.sh [--repo OWNER/REPOSITORY]" >&2
-    exit 2
-  fi
-  selected_repository="$2"
-  [[ "$selected_repository" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || {
-    echo "plugin source check: invalid selected repository" >&2
-    exit 1
-  }
+  echo "usage: plugin-source-check.sh" >&2
+  exit 2
 fi
 
 sources="$(jq -er '
@@ -46,23 +38,11 @@ private_repositories="$(jq -er '
   echo "plugin source check: invalid private repository allowlist" >&2
   exit 1
 }
-if [ -n "$selected_repository" ]; then
-  sources="$(printf '%s\n' "$sources" | awk -F '\t' -v repository="$selected_repository" '$2 == repository')"
-  [ -n "$sources" ] || { echo "plugin source check: selected repository is not in the marketplace" >&2; exit 1; }
-  printf '%s\n' "$private_repositories" | grep -Fqx -- "$selected_repository" || {
-    echo "plugin source check: selected repository is not declared private" >&2
-    exit 1
-  }
-fi
 
 hosted_skip=false
 if [ "${GITHUB_ACTIONS:-}" = true ] && [ "${LIVE_RELEASE_CHECK:-}" != required ]; then hosted_skip=true; fi
-if [ -n "${RICE_RELEASE_DOWNLOAD_TOKEN:-}" ] && [ -z "$selected_repository" ]; then
-  echo "plugin source check: a repository-scoped session requires --repo" >&2
-  exit 1
-fi
 export -n plugin_source_read_token
-plugin_source_read_token="${RICE_RELEASE_DOWNLOAD_TOKEN:-${GITHUB_TOKEN:-$(gh auth token 2>/dev/null || true)}}"
+plugin_source_read_token="${GITHUB_TOKEN:-$(gh auth token 2>/dev/null || true)}"
 unset GH_TOKEN GITHUB_TOKEN MISE_GITHUB_TOKEN RICE_RELEASE_DOWNLOAD_TOKEN RICE_RELEASE_DOWNLOAD_TOKEN_EXPIRES_AT
 if [ -z "$plugin_source_read_token" ] && [ "$hosted_skip" = false ]; then
   echo "plugin source check: no token that can read the plugin sources" >&2

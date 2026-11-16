@@ -53,14 +53,14 @@ were both 2.1.310, so there was no newer version to qualify.
 
 ## Install
 
-No account, token or collaborator access is needed to read or install from this marketplace once its repository is public. Run the command for the mod you want, or run both commands:
+No account, token or collaborator access is needed to read or install from this marketplace once this repository and both mod repositories are public. Run the command for the mod you want, or run both commands:
 
 ```bash
 claude plugin install rice-session-accounts --marketplace moabualruz/rice-mods
 claude plugin install rice-multi-models --marketplace moabualruz/rice-mods
 ```
 
-Each command adds the marketplace if needed and installs that plugin at the commit pinned above. Restart
+Each command adds the marketplace if needed and installs that plugin at the commit pinned in the table below. Restart
 ordinary Claude Code after installation. `claude plugin list` shows installed
 plugins. Check the installed version before using a newly published feature.
 
