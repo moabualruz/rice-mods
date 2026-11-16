@@ -57,7 +57,7 @@ exec /usr/bin/tar "$@"
 function run(root, extra = {}, args = []) {
   return spawnSync("bash", [join(root, "scripts/plugin-source-check.sh"), ...args], {
     encoding: "utf8",
-    env: { PATH: `${join(root, "bin")}:${process.env.PATH}`, HOME: root, FIXTURE_ROOT: root, FIXTURE_STATUS: "404", FIXTURE_VALIDATOR_FAIL: "false", FIXTURE_EXPECTED_TOKEN: "synthetic-token-sentinel", GITHUB_ACTIONS: "true", GITHUB_REPOSITORY: "moabualruz/rice-mods", GITHUB_SHA: sha, GITHUB_RUN_ID: "91001", GITHUB_RUN_ATTEMPT: "1", GITHUB_JOB: "qualify", GITHUB_TOKEN: "synthetic-token-sentinel", ...extra },
+    env: { PATH: `${join(root, "bin")}:${process.env.PATH}`, HOME: root, FIXTURE_ROOT: root, FIXTURE_STATUS: "404", FIXTURE_VALIDATOR_FAIL: "false", FIXTURE_EXPECTED_TOKEN: "synthetic-token-sentinel", GITHUB_ACTIONS: "true", GITHUB_TOKEN: "synthetic-token-sentinel", ...extra },
   });
 }
 
