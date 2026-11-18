@@ -1,6 +1,6 @@
 # rice-release template lock: exact published tag, commit and SHA-256 per file. Written by vendor-lock.sh; do not edit.
-tag templates-v0.3.8
-commit 8086d2f48dcb150958a8b44897a14dd98fbeece3
+tag templates-v0.3.10
+commit 96bfbff327a08565fff2f731764934dca651caae
 cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30  release-packages/LICENSE
 479657e814f5a90ec800b07f7ccad40de94adca12773d2609b9670c7bd48b07d  release-packages/scripts/plugin.sh
 3b0b1cb24e898cf8724ffed269c45258fd870f1af4296a6878a576ce6533b5fa  release-packages/scripts/vendor-lock.sh
